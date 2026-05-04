@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deal Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 24px 40px;
+        }
+
+        .container {
+            padding: 30px 40px;
+        }
+
+        .nav a {
+            margin-right: 12px;
+            color: #2563eb;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .message {
+            background: #e0f2fe;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border-bottom: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            background: #e5e7eb;
+        }
+
+        .yes {
+            color: green;
+            font-weight: bold;
+        }
+
+        .no {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Real Estate Deal Automation Dashboard</h1>
+        <p>Reads Gmail, analyzes deals, and sends WhatsApp alerts.</p>
+    </header>
+
+    <div class="container">
+
+        <div class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/settings/">Settings</a>
+            <a href="/manual-deal/">Manual Deal</a>
+            <a href="/read-gmail/">Read Gmail</a>
+        </div>
+
+        {% for message in messages %}
+            <div class="message">
+                {{ message }}
+            </div>
+        {% endfor %}
+
+        <h2>Recent Deals</h2>
+
+        <table>
+            <tr>
+                <th>Address</th>
+                <th>Price</th>
+                <th>ARV</th>
+                <th>Rehab</th>
+                <th>MAO</th>
+                <th>Flip Profit</th>
+                <th>BRRRR Cash Left</th>
+                <th>Qualifies</th>
+                <th>Recommendation</th>
+            </tr>
+
+            {% for deal in deals %}
+            <tr>
+                <td>{{ deal.address }}</td>
+                <td>${{ deal.price|default:"-" }}</td>
+                <td>${{ deal.arv|default:"-" }}</td>
+                <td>${{ deal.rehab_cost|default:"-" }}</td>
+                <td>${{ deal.mao|default:"-" }}</td>
+                <td>${{ deal.flip_profit|default:"-" }}</td>
+                <td>${{ deal.brrrr_cash_left|default:"-" }}</td>
+
+                <td>
+                    {% if deal.qualifies %}
+                        <span class="yes">YES</span>
+                    {% else %}
+                        <span class="no">NO</span>
+                    {% endif %}
+                </td>
+
+                <td>{{ deal.recommendation }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9">No deals yet. Add one manually or read Gmail.</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+    </div>
+</body>
+</html>

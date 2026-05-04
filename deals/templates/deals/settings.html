@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 24px 40px;
+        }
+
+        .container {
+            padding: 30px 40px;
+        }
+
+        .nav a {
+            margin-right: 12px;
+            color: #2563eb;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            max-width: 800px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 14px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 20px;
+            background: #2563eb;
+            color: white;
+            border: 0;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .message {
+            background: #e0f2fe;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Editable App Settings</h1>
+        <p>Change Gmail, WhatsApp, buy box rules, formulas, and templates.</p>
+        <h2>Gmail Connection</h2>
+
+    </header>
+
+    <div class="container">
+    <h2>Gmail Connection</h2>
+
+    <p>
+    <a href="/connect-gmail/">
+        <button type="button">Connect Gmail</button>
+    </a>
+    </p>
+        <div class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/settings/">Settings</a>
+            <a href="/manual-deal/">Manual Deal</a>
+            <a href="/read-gmail/">Read Gmail</a>
+        </div>
+
+        {% for message in messages %}
+            <div class="message">{{ message }}</div>
+        {% endfor %}
+
+        <div class="card">
+            <form method="POST">
+                {% csrf_token %}
+
+                <h2>Gmail Settings</h2>
+
+                <label>Gmail Search Query</label>
+                <input
+                    name="gmail_query"
+                    value="{{ settings.gmail_query }}"
+                >
+
+                <p>
+                    Example:
+                    <code>subject:(deal OR property OR wholesale)</code>
+                </p>
+
+                <h2>WhatsApp Cloud API Settings</h2>
+
+                <label>WhatsApp Token</label>
+                <textarea name="whatsapp_token" rows="4">{{ settings.whatsapp_token }}</textarea>
+
+                <label>WhatsApp Phone Number ID</label>
+                <input
+                    name="whatsapp_phone_number_id"
+                    value="{{ settings.whatsapp_phone_number_id }}"
+                >
+
+                <label>Recipient WhatsApp Number</label>
+                <input
+                    name="whatsapp_to_number"
+                    value="{{ settings.whatsapp_to_number }}"
+                    placeholder="15551234567"
+                >
+
+                <h2>Buy Box Rules</h2>
+
+                <label>Minimum Beds</label>
+                <input name="min_beds" value="{{ settings.min_beds }}">
+
+                <label>Minimum Baths</label>
+                <input name="min_baths" value="{{ settings.min_baths }}">
+
+                <label>Maximum Price</label>
+                <input name="max_price" value="{{ settings.max_price }}">
+
+                <label>Minimum Year Built</label>
+                <input name="min_year_built" value="{{ settings.min_year_built }}">
+
+                <label>Minimum Square Feet</label>
+                <input name="min_sqft" value="{{ settings.min_sqft }}">
+
+                <label>Allowed Zip Codes</label>
+                <input
+                    name="allowed_zip_codes"
+                    value="{{ settings.allowed_zip_codes }}"
+                    placeholder="75201,75204,75206"
+                >
+
+                <h2>Formula Settings</h2>
+
+                <label>Flip ARV Multiplier</label>
+                <input name="flip_arv_multiplier" value="{{ settings.flip_arv_multiplier }}">
+
+                <label>BRRRR Loan Multiplier</label>
+                <input name="brrrr_loan_multiplier" value="{{ settings.brrrr_loan_multiplier }}">
+
+                <label>Minimum Flip Profit</label>
+                <input name="min_flip_profit" value="{{ settings.min_flip_profit }}">
+
+                <label>Maximum BRRRR Cash Left</label>
+                <input name="max_brrrr_cash_left" value="{{ settings.max_brrrr_cash_left }}">
+
+                <label>Rehab Cost Per Square Foot</label>
+                <input name="rehab_cost_per_sqft" value="{{ settings.rehab_cost_per_sqft }}">
+
+                <h2>Offer Template</h2>
+
+                <label>Email Template</label>
+                <textarea name="offer_template" rows="8">{{ settings.offer_template }}</textarea>
+
+                <button type="submit">Save Settings</button>
+            </form>
+
+            <p>
+                <a href="/test-whatsapp/">Send Test WhatsApp Alert</a>
+            </p>
+        </div>
+
+    </div>
+</body>
+</html>

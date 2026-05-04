@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Deal Entry</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 24px 40px;
+        }
+
+        .container {
+            padding: 30px 40px;
+        }
+
+        .nav a {
+            margin-right: 12px;
+            color: #2563eb;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            max-width: 700px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 20px;
+            background: #2563eb;
+            color: white;
+            border: 0;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Manual Deal Entry</h1>
+        <p>Use this to test the deal analysis engine before Gmail parsing.</p>
+    </header>
+
+    <div class="container">
+
+        <div class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/settings/">Settings</a>
+            <a href="/manual-deal/">Manual Deal</a>
+            <a href="/read-gmail/">Read Gmail</a>
+        </div>
+
+        <div class="card">
+            <form method="POST">
+                {% csrf_token %}
+
+                <label>Address</label>
+                <input name="address" placeholder="123 Main St">
+
+                <label>Zip Code</label>
+                <input name="zip_code" placeholder="75201">
+
+                <label>Purchase Price</label>
+                <input name="price" placeholder="120000">
+
+                <label>Beds</label>
+                <input name="beds" placeholder="3">
+
+                <label>Baths</label>
+                <input name="baths" placeholder="2">
+
+                <label>Square Feet</label>
+                <input name="sqft" placeholder="1500">
+
+                <label>Year Built</label>
+                <input name="year_built" placeholder="1985">
+
+                <label>ARV</label>
+                <input name="arv" placeholder="220000">
+
+                <label>Rehab Cost</label>
+                <input name="rehab_cost" placeholder="45000">
+
+                <label>Rent Estimate</label>
+                <input name="rent" placeholder="1600">
+
+                <button type="submit">Analyze Deal</button>
+            </form>
+        </div>
+
+    </div>
+</body>
+</html>

@@ -30,11 +30,19 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 from .models import GmailAccount
+import os
+import json
 
+from django.shortcuts import redirect
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+
+from .models import GmailAccount
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
 ]
+
 
 def get_google_credentials_config():
     raw_creds = os.environ.get("GOOGLE_CREDENTIALS")
@@ -55,7 +63,8 @@ def connect_gmail(request):
     flow = Flow.from_client_config(
         google_creds,
         scopes=SCOPES,
-        redirect_uri=get_redirect_uri()
+        redirect_uri=get_redirect_uri(),
+        autogenerate_code_verifier=True,  # 🔥 IMPORTANT FIX
     )
 
     authorization_url, state = flow.authorization_url(
@@ -65,18 +74,23 @@ def connect_gmail(request):
     )
 
     request.session["state"] = state
+    request.session["code_verifier"] = flow.code_verifier  # 🔥 SAVE THIS
+    request.session.save()
 
     return redirect(authorization_url)
 
 def oauth2callback(request):
     google_creds = get_google_credentials_config()
+
     state = request.session.get("state")
+    code_verifier = request.session.get("code_verifier")
 
     flow = Flow.from_client_config(
         google_creds,
         scopes=SCOPES,
         state=state,
-        redirect_uri=get_redirect_uri()
+        redirect_uri=get_redirect_uri(),
+        code_verifier=code_verifier,  # 🔥 IMPORTANT FIX
     )
 
     flow.fetch_token(authorization_response=request.build_absolute_uri())
@@ -94,6 +108,7 @@ def oauth2callback(request):
     )
 
     return redirect("settings")
+
 def email_logs(request):
     logs = EmailReadLog.objects.order_by("-created_at")[:100]
     return render(request, "deals/email_logs.html", {"logs": logs})

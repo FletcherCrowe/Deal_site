@@ -46,7 +46,7 @@ def get_google_credentials_config():
 
 
 def get_redirect_uri():
-    return "https://deal-site-s0jh.onrender.com"
+    return "https://deal-site-s0jh.onrender.com/oauth2callback/"
 
 
 def connect_gmail(request):

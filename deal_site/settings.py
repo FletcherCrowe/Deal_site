@@ -33,7 +33,9 @@ ALLOWED_HOSTS = [
     ".onrender.com",
 ]
 
-ALLOWED_HOSTS = []
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.onrender.com",
+]
 
 
 # Application definition
@@ -134,3 +136,11 @@ DATABASES = {
         conn_max_age=600,
     )
 }
+"""
+git init
+git add .
+git commit -m "Initial deploy"
+git branch -M main
+git remote add origin https://github.com/FletcherCrowe/
+git push -u origin main
+"""

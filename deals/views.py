@@ -69,7 +69,7 @@ def connect_gmail(request):
 
     authorization_url, state = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="False",
+        include_granted_scopes="false",
         prompt="consent",
     )
 

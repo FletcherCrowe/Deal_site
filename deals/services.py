@@ -315,6 +315,88 @@ def get_gmail_service():
         account.save()
 
     return build("gmail", "v1", credentials=creds)
+def get_specific_email(sender_email, email_number):
+    """
+    Get data from a specific email from a sender.
+
+    Example:
+        get_specific_email("gmusb@gmail.com", 4)
+
+    -> Gets the 4th newest email from that sender
+    """
+
+    SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+    creds = Credentials.from_authorized_user_file(
+        "token.json",
+        SCOPES
+    )
+
+    service = build("gmail", "v1", credentials=creds)
+
+    # Search emails from sender
+    #reults is just going to be the ID
+    results = service.users().messages().list(
+        userId="me",
+        q=f"from:{sender_email}",
+
+    ).execute()
+    
+    messages = results.get("messages", [])
+
+    # Get the specific email
+    target_email = messages[email_number - 1]
+    message = service.users().messages().get(
+        userId="me",
+        id=target_email["id"],
+        format="full"
+    ).execute()
+    payload = message["payload"]
+    headers = payload["headers"]
+    subject = ""
+    sender = ""
+    date = ""
+
+    for header in headers:
+
+        if header["name"] == "Subject":
+            subject = header["value"]
+
+        elif header["name"] == "From":
+            sender = header["value"]
+
+        elif header["name"] == "Date":
+            date = header["value"]
+
+    # Get email text
+    data = None
+
+    parts = payload.get("parts")
+
+    if parts:
+        for part in parts:
+            if part["mimeType"] == "text/plain":
+                data = part["body"].get("data")
+                break
+    else:
+        data = payload["body"].get("data")
+
+    body_text = ""
+
+    if data:
+        body_text = base64.urlsafe_b64decode(
+            data
+        ).decode("utf-8")
+
+    return {
+        "id": target_email["id"],
+        "subject": subject,
+        "from": sender,
+        "date": date,
+        "body": body_text
+    }
+Test_mail=get_specific_email("agmusb@gmail.com",5)
+print(Test_mail['body'])
 def extract_message_body(payload):
     """
     Extract readable email body text from a Gmail API message payload.

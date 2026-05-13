@@ -18,7 +18,6 @@ class Command(BaseCommand):
         seconds = options["seconds"]
 
         self.stdout.write(self.style.SUCCESS("Starting Gmail listener..."))
-        self.stdout.write(f"Checking Gmail every {seconds} seconds.")
 
         while True:
             try:
@@ -26,16 +25,12 @@ class Command(BaseCommand):
 
                 if created:
                     self.stdout.write(
-                        self.style.SUCCESS(
-                            f"Saved {len(created)} new email(s)."
-                        )
+                        self.style.SUCCESS(f"Saved {len(created)} new email(s).")
                     )
                 else:
                     self.stdout.write("No new emails.")
 
             except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"Error checking Gmail: {e}")
-                )
+                self.stdout.write(self.style.ERROR(f"Gmail listener error: {e}"))
 
             time.sleep(seconds)

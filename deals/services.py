@@ -297,7 +297,6 @@ from googleapiclient.discovery import build
 
 from .models import GmailAccount
 
-
 def get_gmail_service():
     account = GmailAccount.objects.first()
 

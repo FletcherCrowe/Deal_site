@@ -76,6 +76,17 @@
     </header>
 
     <div class="container">
+        <h2>Connected Gmail</h2>
+
+{% if gmail_account %}
+    <p>Connected as: <b>{{ gmail_account.email }}</b></p>
+{% else %}
+    <p>No Gmail connected yet.</p>
+{% endif %}
+
+<a href="/connect-gmail/">
+    <button type="button">Connect Gmail</button>
+</a>
     <h2>Gmail Connection</h2>
 
     <p>

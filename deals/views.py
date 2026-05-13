@@ -38,7 +38,34 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 from .models import GmailAccount
+from django.http import JsonResponse
+from .models import Deal
 
+
+def export_emails_view(request):
+    deals = Deal.objects.order_by("-created_at")
+
+    data = []
+
+    for deal in deals:
+        data.append({
+            "id": deal.id,
+            "sender": deal.sender,
+            "subject": deal.subject,
+            "body": deal.body,
+            "price": deal.price,
+            "beds": deal.beds,
+            "baths": deal.baths,
+            "sqft": deal.sqft,
+            "year_built": deal.year_built,
+            "arv": deal.arv,
+            "rehab_cost": deal.rehab_cost,
+            "rent": deal.rent,
+            "qualifies": deal.qualifies,
+            "created_at": deal.created_at.isoformat(),
+        })
+
+    return JsonResponse(data, safe=False)
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
 ]
@@ -146,7 +173,7 @@ def settings_page(request):
     """
 
     settings = get_settings()
-
+    gmail_account = GmailAccount.objects.first()
     if request.method == "POST":
         # Text fields.
         text_fields = [
@@ -182,8 +209,15 @@ def settings_page(request):
                 setattr(settings, field, value)
 
         settings.save()
-
         messages.success(request, "Settings saved successfully.")
+        return render(
+        request,
+        "deals/settings.html",
+        {
+            "settings": settings,
+            "gmail_account": gmail_account,
+        }
+        )
         return redirect("settings")
 
     return render(

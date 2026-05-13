@@ -21,4 +21,5 @@ urlpatterns = [
     path("email-logs/", views.email_logs, name="email_logs"),
     path("connect-gmail/", views.connect_gmail, name="connect_gmail"),
     path("oauth2callback/", views.oauth2callback, name="oauth2callback"),
+    path("export-emails/", views.export_emails_view),
 ]

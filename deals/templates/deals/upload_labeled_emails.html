@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Labeled Emails</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            padding: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 700px;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        pre {
+            background: #111827;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Upload Labeled Emails JSON</h1>
+
+<p>
+    <a href="/">Dashboard</a> |
+    <a href="/label-emails/">Label Emails</a> |
+    <a href="/export-labeled-emails/">Export Labeled JSON</a>
+</p>
+
+{% for message in messages %}
+    <p><b>{{ message }}</b></p>
+{% endfor %}
+
+<div class="card">
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <label>Upload JSON File</label><br><br>
+        <input type="file" name="json_file" accept=".json">
+
+        <br>
+        <button type="submit">Upload</button>
+    </form>
+
+    <h3>Expected Format</h3>
+
+<pre>{
+  "emails": [
+    {
+      "subject": "Example deal email",
+      "body": "Full email body here...",
+      "is_potential_lead": true,
+      "send_to_llm": true,
+      "label_notes": "This is a wholesaler lead"
+    },
+    {
+      "subject": "Random newsletter",
+      "body": "Full email body here...",
+      "is_potential_lead": false,
+      "send_to_llm": false,
+      "label_notes": "Not relevant"
+    }
+  ]
+}</pre>
+</div>
+
+</body>
+</html>

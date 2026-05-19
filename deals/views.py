@@ -12,10 +12,6 @@ Pages in this milestone:
 - Read Gmail
 - Test WhatsApp
 """
-
-from django.contrib import messages
-from django.shortcuts import render, redirect
-
 from .models import Deal,EmailReadLog
 from .services import (
     get_settings,
@@ -29,39 +25,49 @@ from django.shortcuts import redirect
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+
+from .models import Deal
+from .services import score_email_against_labeled_examples
 from .models import GmailAccount
 import os
 import json
-
-from django.shortcuts import redirect
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
-from .models import GmailAccount
 from django.http import JsonResponse
-from .models import Deal
 
 
 def export_emails_view(request):
+    gmail_account = GmailAccount.objects.first()
     deals = Deal.objects.order_by("-created_at")
 
-    data = []
+    data = {
+        "connected_gmail": gmail_account.email if gmail_account else None,
+        "total_emails": deals.count(),
+        "emails": []
+    }
 
     for deal in deals:
-        data.append({
+        data["emails"].append({
             "id": deal.id,
+            "email_id": deal.email_id,
             "sender": deal.sender,
             "subject": deal.subject,
             "body": deal.body,
-            "price": deal.price,
-            "beds": deal.beds,
-            "baths": deal.baths,
-            "sqft": deal.sqft,
-            "year_built": deal.year_built,
-            "arv": deal.arv,
-            "rehab_cost": deal.rehab_cost,
-            "rent": deal.rent,
-            "qualifies": deal.qualifies,
+            "raw_email_json": deal.raw_email_json,
+            "parsed_data": {
+                "address": deal.address,
+                "zip_code": deal.zip_code,
+                "price": deal.price,
+                "beds": deal.beds,
+                "baths": deal.baths,
+                "sqft": deal.sqft,
+                "year_built": deal.year_built,
+                "arv": deal.arv,
+                "rehab_cost": deal.rehab_cost,
+                "rent": deal.rent,
+            },
             "created_at": deal.created_at.isoformat(),
         })
 
@@ -257,7 +263,165 @@ def manual_deal(request):
         return redirect("dashboard")
 
     return render(request, "deals/manual_deal.html")
+def label_emails(request):
+    """
+    Shows the next unlabeled email.
 
+    This is where you manually label:
+    - Yes = potential lead
+    - No = not useful
+    """
+
+    deal = Deal.objects.filter(is_labeled=False).order_by("-created_at").first()
+
+    if not deal:
+        return render(request, "deals/label_done.html")
+
+    # Re-score before showing, so confidence is current.
+    score_email_against_labeled_examples(deal)
+
+    return render(request, "deals/label_email.html", {
+        "deal": deal
+    })
+
+
+def save_email_label(request, deal_id):
+    """
+    Saves your manual Yes/No label.
+    """
+
+    deal = get_object_or_404(Deal, id=deal_id)
+
+    if request.method == "POST":
+        label = request.POST.get("label")
+        notes = request.POST.get("label_notes", "")
+
+        deal.is_labeled = True
+        deal.label_notes = notes
+
+        if label == "yes":
+            deal.is_potential_lead = True
+            deal.send_to_llm = True
+
+        elif label == "no":
+            deal.is_potential_lead = False
+            deal.send_to_llm = False
+
+        deal.save()
+
+        # After labeling this one, update scores for all unlabeled emails.
+        unlabeled = Deal.objects.filter(is_labeled=False)
+
+        for email in unlabeled:
+            score_email_against_labeled_examples(email)
+
+        messages.success(request, "Label saved.")
+
+    return redirect("label_emails")
+
+
+def export_labeled_emails(request):
+    """
+    Exports all labeled emails as JSON.
+
+    You can save this file and use it as your training/knowledge base.
+    """
+
+    deals = Deal.objects.filter(is_labeled=True).order_by("-created_at")
+
+    data = {
+        "emails": []
+    }
+
+    for deal in deals:
+        data["emails"].append({
+            "email_id": deal.email_id,
+            "sender": deal.sender,
+            "subject": deal.subject,
+            "body": deal.body,
+            "is_potential_lead": deal.is_potential_lead,
+            "send_to_llm": deal.send_to_llm,
+            "difflib_score": deal.difflib_score,
+            "label_notes": deal.label_notes,
+            "created_at": deal.created_at.isoformat(),
+        })
+
+    return JsonResponse(data, safe=False)
+
+
+def upload_labeled_emails(request):
+    """
+    Lets you upload a JSON file of labeled emails.
+
+    Expected format:
+
+    {
+      "emails": [
+        {
+          "subject": "Example",
+          "body": "Email text...",
+          "is_potential_lead": true,
+          "send_to_llm": true,
+          "label_notes": "optional notes"
+        }
+      ]
+    }
+    """
+
+    if request.method == "POST":
+        uploaded_file = request.FILES.get("json_file")
+
+        if not uploaded_file:
+            messages.error(request, "No JSON file uploaded.")
+            return redirect("upload_labeled_emails")
+
+        try:
+            data = json.load(uploaded_file)
+
+            emails = data.get("emails", [])
+
+            created_count = 0
+
+            for item in emails:
+                body = item.get("body", "")
+                subject = item.get("subject", "")
+
+                if not body:
+                    continue
+
+                # Prevent exact duplicate imports.
+                existing = Deal.objects.filter(body=body, subject=subject).first()
+
+                if existing:
+                    continue
+
+                deal = Deal.objects.create(
+                    email_id=item.get("email_id") or None,
+                    sender=item.get("sender", ""),
+                    subject=subject,
+                    body=body,
+                    is_labeled=True,
+                    is_potential_lead=bool(item.get("is_potential_lead", False)),
+                    send_to_llm=bool(item.get("send_to_llm", False)),
+                    label_notes=item.get("label_notes", ""),
+                )
+
+                score_email_against_labeled_examples(deal)
+
+                created_count += 1
+
+            # Re-score all unlabeled emails after adding new examples.
+            for email in Deal.objects.filter(is_labeled=False):
+                score_email_against_labeled_examples(email)
+
+            messages.success(request, f"Imported {created_count} labeled emails.")
+
+        except Exception as e:
+            messages.error(request, f"Upload failed: {e}")
+
+        return redirect("upload_labeled_emails")
+
+    return render(request, "deals/upload_labeled_emails.html")
 
 def read_gmail(request):
     """

@@ -58,7 +58,7 @@ class AppSettings(models.Model):
     # the app calculates rehab as:
     # sqft * rehab_cost_per_sqft
     rehab_cost_per_sqft = models.IntegerField(default=35)
-
+    difflib_confidence_threshold = models.FloatField(default=0.60)
     # Future setting.
     # Not fully used yet, but useful when you add auto-reply.
     offer_template = models.TextField(default="""Hi,
@@ -124,7 +124,18 @@ class Deal(models.Model):
     recommendation = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    # Labeling fields
+    is_labeled = models.BooleanField(default=False)
+    is_potential_lead = models.BooleanField(default=False)
+    send_to_llm = models.BooleanField(default=False)
 
+    # Difflib scoring fields
+    difflib_score = models.FloatField(null=True, blank=True)
+    matched_example_subject = models.CharField(max_length=255, blank=True)
+    matched_example_body = models.TextField(blank=True)
+
+    # Optional notes
+    label_notes = models.TextField(blank=True)
     def __str__(self):
         return self.address or self.subject or f"Deal {self.id}"
 class EmailReadLog(models.Model):

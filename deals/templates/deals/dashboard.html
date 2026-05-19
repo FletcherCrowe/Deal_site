@@ -90,6 +90,9 @@
 
         <table>
             <tr>
+                <th>Confidence</th>
+                <th>Lead?</th>
+                <th>Send to LLM?</th>
                 <th>Address</th>
                 <th>Price</th>
                 <th>ARV</th>
@@ -110,7 +113,9 @@
                 <td>${{ deal.mao|default:"-" }}</td>
                 <td>${{ deal.flip_profit|default:"-" }}</td>
                 <td>${{ deal.brrrr_cash_left|default:"-" }}</td>
-
+                <td>{{ deal.difflib_score|default:0|floatformat:2 }}</td>
+                <td>{{ deal.is_potential_lead }}</td>
+                <td>{{ deal.send_to_llm }}</td>
                 <td>
                     {% if deal.qualifies %}
                         <span class="yes">YES</span>

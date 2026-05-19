@@ -82,7 +82,62 @@ def clean_money(value):
 
     return int(cleaned)
 
+from difflib import SequenceMatcher
+from .models import Deal
 
+
+def similarity_score(text1, text2):
+    """
+    Returns a score from 0.0 to 1.0.
+    Higher means more similar.
+    """
+
+    text1 = text1 or ""
+    text2 = text2 or ""
+
+    return SequenceMatcher(None, text1.lower(), text2.lower()).ratio()
+
+
+def score_email_against_labeled_examples(deal):
+    """
+    Compares a new email against all labeled emails.
+
+    If it finds a similar labeled email above the confidence threshold,
+    it copies that label.
+
+    Example:
+    - old labeled email = potential lead
+    - new email is 0.74 similar
+    - threshold is 0.60
+    - new email gets marked as potential lead
+    """
+
+    settings = get_settings()
+
+    labeled_examples = Deal.objects.filter(is_labeled=True)
+
+    best_match = None
+    best_score = 0
+
+    for example in labeled_examples:
+        score = similarity_score(deal.body, example.body)
+
+        if score > best_score:
+            best_score = score
+            best_match = example
+
+    deal.difflib_score = best_score
+
+    if best_match:
+        deal.matched_example_subject = best_match.subject or ""
+        deal.matched_example_body = (best_match.body or "")[:2000]
+
+        if best_score >= settings.difflib_confidence_threshold:
+            deal.is_potential_lead = best_match.is_potential_lead
+            deal.send_to_llm = best_match.is_potential_lead
+
+    deal.save()
+    return deal
 def parse_deal_from_text(text):
     """
     Extract property data from an email body.
@@ -513,7 +568,11 @@ def read_gmail_deals():
                 raw_email_json=full_msg,
                 **parsed
             )
+
             analyze_deal(deal)
+
+            # Automatically score every new incoming email
+            score_email_against_labeled_examples(deal)
             if Deal.objects.filter(email_id=email_id).exists():
                 print("SKIPPED DUPLICATE:", email_id)
                 continue

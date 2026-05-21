@@ -101,7 +101,14 @@
         <p><b>Saved:</b> {{ deal.created_at }}</p>
 
         <h3>Email Body</h3>
-        <pre>{{ deal.body }}</pre>
+        {% if deal.html_body %}
+    <iframe
+        srcdoc="{{ deal.html_body|escape }}"
+        style="width:100%; height:700px; border:1px solid #ddd; border-radius:10px; background:white;">
+    </iframe>
+{% else %}
+    <pre>{{ deal.body }}</pre>
+{% endif %}
     </div>
 
     <div class="card">

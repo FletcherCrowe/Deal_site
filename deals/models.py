@@ -100,7 +100,7 @@ class Deal(models.Model):
     sender = models.EmailField(blank=True)
     subject = models.CharField(max_length=255, blank=True)
     body = models.TextField(blank=True)
-
+    html_body = models.TextField(blank=True)
     # Property info.
     address = models.CharField(max_length=255, blank=True)
     zip_code = models.CharField(max_length=20, blank=True)

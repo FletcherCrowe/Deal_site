@@ -138,6 +138,30 @@ def score_email_against_labeled_examples(deal):
 
     deal.save()
     return deal
+def extract_message_bodies(payload):
+    plain_text = ""
+    html_text = ""
+
+    if payload.get("body", {}).get("data"):
+        raw = payload["body"]["data"]
+        decoded = base64.urlsafe_b64decode(raw).decode("utf-8", errors="ignore")
+
+        if payload.get("mimeType") == "text/html":
+            html_text = decoded
+            plain_text = BeautifulSoup(decoded, "html.parser").get_text(" ")
+        else:
+            plain_text = decoded
+
+    for part in payload.get("parts", []):
+        part_plain, part_html = extract_message_bodies(part)
+
+        if part_plain and not plain_text:
+            plain_text = part_plain
+
+        if part_html and not html_text:
+            html_text = part_html
+
+    return plain_text, html_text
 def parse_deal_from_text(text):
     """
     Extract property data from an email body.
@@ -557,14 +581,16 @@ def read_gmail_deals():
                 if name == "from":
                     sender = parseaddr(value)[1]
 
-            body = extract_message_body(payload)
+            body,html_body  = extract_message_body(payload)
             parsed = parse_deal_from_text(body)
 
+ 
             deal = Deal.objects.create(
                 email_id=email_id,
                 sender=sender,
                 subject=subject,
                 body=body,
+                html_body=html_body,
                 raw_email_json=full_msg,
                 **parsed
             )

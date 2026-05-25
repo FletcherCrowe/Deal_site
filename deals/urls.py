@@ -22,7 +22,7 @@ urlpatterns = [
     path("connect-gmail/", views.connect_gmail, name="connect_gmail"),
     path("oauth2callback/", views.oauth2callback, name="oauth2callback"),
     path("export-emails/", views.export_emails_view),
-    path("label-emails/", views.label_emails, name="label_emails"),
+   path("label-emails/", views.label_emails, name="label_emails"),
     path("label-emails/<int:deal_id>/save/", views.save_email_label, name="save_email_label"),
 
     path("export-labeled-emails/", views.export_labeled_emails, name="export_labeled_emails"),

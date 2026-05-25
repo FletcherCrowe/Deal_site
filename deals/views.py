@@ -264,10 +264,7 @@ def manual_deal(request):
 
     return render(request, "deals/manual_deal.html")
 def label_emails(request):
-    deal = Deal.objects.filter(is_labeled=False).order_by(
-        "-gmail_received_at",
-        "-created_at"
-    ).first()
+    deal = Deal.objects.filter(is_labeled=False).order_by("-created_at").first()
 
     if not deal:
         return render(request, "deals/label_done.html")

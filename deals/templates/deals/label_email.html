@@ -4,61 +4,83 @@
     <title>Label Email</title>
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
             background: #f4f6f8;
-            padding: 30px;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
         }
 
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 20px;
-        }
-
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-        }
-
-        pre {
-            white-space: pre-wrap;
+        .topbar {
+            height: 70px;
             background: #111827;
             color: white;
-            padding: 20px;
-            border-radius: 10px;
-            max-height: 650px;
-            overflow-y: auto;
+            padding: 14px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        button {
-            width: 100%;
-            padding: 16px;
-            margin-top: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
+        .topbar h1 {
+            font-size: 22px;
+            margin: 0;
+        }
+
+        .topbar a {
+            color: #93c5fd;
+            margin-left: 12px;
+            text-decoration: none;
             font-weight: bold;
-            cursor: pointer;
         }
 
-        .yes {
-            background: #16a34a;
-            color: white;
+        .page {
+            height: calc(100vh - 70px);
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 380px;
+            gap: 16px;
+            padding: 16px;
         }
 
-        .no {
-            background: #dc2626;
-            color: white;
+        .email-panel,
+        .label-panel {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
 
-        textarea {
+        .email-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #ffffff;
+        }
+
+        .email-header h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+        }
+
+        .email-header p {
+            margin: 4px 0;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .email-frame {
             width: 100%;
-            height: 100px;
-            margin-top: 10px;
-            padding: 10px;
-            box-sizing: border-box;
+            height: calc(100vh - 185px);
+            border: none;
+            background: white;
+        }
+
+        .label-panel {
+            padding: 18px;
+            overflow-y: auto;
         }
 
         .confidence {
@@ -72,66 +94,86 @@
             background: #f3f4f6;
             padding: 12px;
             border-radius: 8px;
-            max-height: 220px;
+            max-height: 180px;
             overflow-y: auto;
             font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 90px;
+            padding: 10px;
+            margin: 10px 0;
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .yes {
+            background: #16a34a;
+            color: white;
+        }
+
+        .no {
+            background: #dc2626;
+            color: white;
         }
     </style>
 </head>
 
 <body>
 
-<h1>Email Labeling</h1>
+<div class="topbar">
+    <h1>Email Labeling</h1>
 
-<p>
-    <a href="/">Dashboard</a> |
-    <a href="/upload-labeled-emails/">Upload Labeled JSON</a> |
-    <a href="/export-labeled-emails/">Export Labeled JSON</a>
-</p>
+    <div>
+        <a href="/">Dashboard</a>
+        <a href="/upload-labeled-emails/">Upload JSON</a>
+        <a href="/export-labeled-emails/">Export JSON</a>
+    </div>
+</div>
 
-{% for message in messages %}
-    <p><b>{{ message }}</b></p>
-{% endfor %}
+<div class="page">
 
-<div class="container">
+    <div class="email-panel">
+        <div class="email-header">
+            <h2>{{ deal.subject }}</h2>
+            <p><b>From:</b> {{ deal.sender }}</p>
+            <p><b>Saved:</b> {{ deal.created_at }}</p>
+        </div>
 
-    <div class="card">
-        <h2>{{ deal.subject }}</h2>
-        <p><b>From:</b> {{ deal.sender }}</p>
-        <p><b>Saved:</b> {{ deal.created_at }}</p>
-
-        <h3>Email Body</h3>
-        {% if deal.html_body %}
-    <iframe
-        srcdoc="{{ deal.html_body|escape }}"
-        style="width:100%; height:700px; border:1px solid #ddd; border-radius:10px; background:white;">
-    </iframe>
-{% else %}
-    <pre>{{ deal.body }}</pre>
-{% endif %}
+        <iframe
+            class="email-frame"
+            src="{% url 'email_preview' deal.id %}">
+        </iframe>
     </div>
 
-    <div class="card">
+    <div class="label-panel">
         <h2>Label This Email</h2>
 
         <div class="confidence">
             <p><b>Difflib Confidence:</b> {{ deal.difflib_score|default:0|floatformat:2 }}</p>
 
-            {% if deal.difflib_score %}
-                {% if deal.is_potential_lead %}
-                    <p><b>Current Auto Guess:</b> YES - Potential Lead</p>
-                {% else %}
-                    <p><b>Current Auto Guess:</b> NO / Unknown</p>
-                {% endif %}
+            {% if deal.is_potential_lead %}
+                <p><b>Current Auto Guess:</b> YES - Potential Lead</p>
             {% else %}
-                <p>No confidence score yet.</p>
+                <p><b>Current Auto Guess:</b> NO / Unknown</p>
             {% endif %}
         </div>
 
         {% if deal.matched_example_subject %}
-            <h3>Closest Labeled Match</h3>
-            <p><b>Subject:</b> {{ deal.matched_example_subject }}</p>
-
+            <h3>Closest Match</h3>
+            <p><b>{{ deal.matched_example_subject }}</b></p>
             <div class="match-box">
                 {{ deal.matched_example_body }}
             </div>
@@ -140,16 +182,18 @@
         {% endif %}
 
         <form method="POST" action="{% url 'save_email_label' deal.id %}">
-    {% csrf_token %}
+            {% csrf_token %}
 
-    <button type="submit" name="label" value="yes">
-        YES - Potential Lead
-    </button>
+            <textarea name="label_notes" placeholder="Optional notes..."></textarea>
 
-    <button type="submit" name="label" value="no">
-        NO - Not Useful
-    </button>
-</form>
+            <button class="yes" type="submit" name="label" value="yes">
+                YES - Potential Lead
+            </button>
+
+            <button class="no" type="submit" name="label" value="no">
+                NO - Not Useful
+            </button>
+        </form>
     </div>
 
 </div>

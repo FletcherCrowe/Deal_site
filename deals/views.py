@@ -36,8 +36,22 @@ import json
 from googleapiclient.discovery import build
 
 from django.http import JsonResponse
+from django.http import HttpResponse
+def email_preview(request, deal_id):
+    deal = get_object_or_404(Deal, id=deal_id)
 
+    if deal.html_body:
+        return HttpResponse(deal.html_body, content_type="text/html")
 
+    text_html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; white-space: pre-wrap; padding: 20px;">
+            {deal.body}
+        </body>
+    </html>
+    """
+
+    return HttpResponse(text_html, content_type="text/html")
 def export_emails_view(request):
     gmail_account = GmailAccount.objects.first()
     deals = Deal.objects.order_by("-created_at")

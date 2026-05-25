@@ -24,7 +24,7 @@ urlpatterns = [
     path("export-emails/", views.export_emails_view),
    path("label-emails/", views.label_emails, name="label_emails"),
     path("label-emails/<int:deal_id>/save/", views.save_email_label, name="save_email_label"),
-
+    path("email-preview/<int:deal_id>/", views.email_preview, name="email_preview"),
     path("export-labeled-emails/", views.export_labeled_emails, name="export_labeled_emails"),
     path("upload-labeled-emails/", views.upload_labeled_emails, name="upload_labeled_emails"),
 ]

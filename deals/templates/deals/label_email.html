@@ -139,19 +139,17 @@
             <p>No labeled example matched yet.</p>
         {% endif %}
 
-        <form method="POST" action="/label-emails/{{ deal.id }}/save/">
-            {% csrf_token %}
+        <form method="POST" action="{% url 'save_email_label' deal.id %}">
+    {% csrf_token %}
 
-            <textarea name="label_notes" placeholder="Optional notes: why yes/no, what part matters, etc."></textarea>
+    <button type="submit" name="label" value="yes">
+        YES - Potential Lead
+    </button>
 
-            <button class="yes" type="submit" name="label" value="yes">
-                YES - Potential Lead
-            </button>
-
-            <button class="no" type="submit" name="label" value="no">
-                NO - Not Useful
-            </button>
-        </form>
+    <button type="submit" name="label" value="no">
+        NO - Not Useful
+    </button>
+</form>
     </div>
 
 </div>

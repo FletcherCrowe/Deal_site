@@ -264,61 +264,41 @@ def manual_deal(request):
 
     return render(request, "deals/manual_deal.html")
 def label_emails(request):
-    """
-    Shows the next unlabeled email.
-
-    This is where you manually label:
-    - Yes = potential lead
-    - No = not useful
-    """
-
-    deal = Deal.objects.filter(is_labeled=False).order_by("-created_at").first()
+    deal = Deal.objects.filter(is_labeled=False).order_by(
+        "-gmail_received_at",
+        "-created_at"
+    ).first()
 
     if not deal:
         return render(request, "deals/label_done.html")
 
-    # Re-score before showing, so confidence is current.
-    score_email_against_labeled_examples(deal)
-
-    return render(request, "deals/label_email.html", {
-        "deal": deal
-    })
+    return render(request, "deals/label_email.html", {"deal": deal})
 
 
 def save_email_label(request, deal_id):
-    """
-    Saves your manual Yes/No label.
-    """
-
     deal = get_object_or_404(Deal, id=deal_id)
 
-    if request.method == "POST":
-        label = request.POST.get("label")
-        notes = request.POST.get("label_notes", "")
+    if request.method != "POST":
+        return redirect("label_emails")
 
+    label = request.POST.get("label")
+
+    if label == "yes":
         deal.is_labeled = True
-        deal.label_notes = notes
-
-        if label == "yes":
-            deal.is_potential_lead = True
-            deal.send_to_llm = True
-
-        elif label == "no":
-            deal.is_potential_lead = False
-            deal.send_to_llm = False
-
+        deal.is_potential_lead = True
+        deal.send_to_llm = True
         deal.save()
 
-        # After labeling this one, update scores for all unlabeled emails.
-        unlabeled = Deal.objects.filter(is_labeled=False)
+    elif label == "no":
+        deal.is_labeled = True
+        deal.is_potential_lead = False
+        deal.send_to_llm = False
+        deal.save()
 
-        for email in unlabeled:
-            score_email_against_labeled_examples(email)
-
-        messages.success(request, "Label saved.")
+    else:
+        messages.error(request, "Invalid label submitted.")
 
     return redirect("label_emails")
-
 
 def export_labeled_emails(request):
     """

@@ -25,7 +25,7 @@ import json
 from django.shortcuts import redirect
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
-
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 
@@ -45,15 +45,10 @@ def email_preview(request, deal_id):
     if deal.html_body:
         return HttpResponse(deal.html_body, content_type="text/html")
 
-    text_html = f"""
-    <html>
-        <body style="font-family: Arial, sans-serif; white-space: pre-wrap; padding: 20px;">
-            {deal.body}
-        </body>
-    </html>
-    """
-
-    return HttpResponse(text_html, content_type="text/html")
+    return HttpResponse(
+        f"<pre>{deal.body}</pre>",
+        content_type="text/html"
+    )
 def email_preview(request, deal_id):
     deal = get_object_or_404(Deal, id=deal_id)
 

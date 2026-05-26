@@ -27,4 +27,6 @@ urlpatterns = [
     path("email-preview/<int:deal_id>/", views.email_preview, name="email_preview"),
     path("export-labeled-emails/", views.export_labeled_emails, name="export_labeled_emails"),
     path("upload-labeled-emails/", views.upload_labeled_emails, name="upload_labeled_emails"),
+    path("reset-gmail/", views.reset_gmail_connection, name="reset_gmail_connection"),
+    path("gmail-status/", views.gmail_status, name="gmail_status"),
 ]

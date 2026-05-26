@@ -38,6 +38,39 @@ from googleapiclient.discovery import build
 
 from django.http import JsonResponse
 from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.contrib import messages
+from .models import GmailAccount
+
+
+def reset_gmail_connection(request):
+    GmailAccount.objects.all().delete()
+    messages.success(request, "Gmail connection deleted. Reconnect Gmail now.")
+    return redirect("settings")
+from django.http import JsonResponse
+from .models import GmailAccount
+
+
+def gmail_status(request):
+    account = GmailAccount.objects.first()
+
+    if not account:
+        return JsonResponse({
+            "connected": False,
+            "message": "No Gmail account connected."
+        })
+
+    token = account.token_json
+
+    return JsonResponse({
+        "connected": True,
+        "email": account.email,
+        "connected_at": account.connected_at.isoformat(),
+        "scopes": token.get("scopes") or token.get("scope"),
+        "has_refresh_token": bool(token.get("refresh_token")),
+        "token_uri": token.get("token_uri"),
+        "client_id_ending": token.get("client_id", "")[-10:],
+    })
 @xframe_options_exempt
 def email_preview(request, deal_id):
     deal = get_object_or_404(Deal, id=deal_id)

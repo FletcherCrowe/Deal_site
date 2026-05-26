@@ -403,7 +403,10 @@ def get_specific_email(sender_email, email_number):
     -> Gets the 4th newest email from that sender
     """
 
-    SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+    SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    ]
 
     creds = Credentials.from_authorized_user_file(
         "token.json",

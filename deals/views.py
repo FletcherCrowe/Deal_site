@@ -133,8 +133,8 @@ def export_emails_view(request):
     return JsonResponse(data, safe=False)
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
 ]
-
 
 def get_google_credentials_config():
     raw_creds = os.environ.get("GOOGLE_CREDENTIALS")

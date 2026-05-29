@@ -41,7 +41,48 @@ from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.contrib import messages
 from .models import GmailAccount
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from .models import Deal
 
+
+def email_detail(request, deal_id):
+    deal = get_object_or_404(Deal, id=deal_id)
+
+    return render(request, "deals/email_detail.html", {
+        "deal": deal
+    })
+
+
+def save_email_label_from_detail(request, deal_id):
+    deal = get_object_or_404(Deal, id=deal_id)
+
+    if request.method != "POST":
+        return redirect("email_detail", deal_id=deal.id)
+
+    label = request.POST.get("label")
+    label_notes = request.POST.get("label_notes", "")
+
+    if label == "yes":
+        deal.is_labeled = True
+        deal.is_potential_lead = True
+        deal.send_to_llm = True
+        deal.label_notes = label_notes
+        deal.save()
+        messages.success(request, "Email labeled YES - Potential Lead.")
+
+    elif label == "no":
+        deal.is_labeled = True
+        deal.is_potential_lead = False
+        deal.send_to_llm = False
+        deal.label_notes = label_notes
+        deal.save()
+        messages.success(request, "Email labeled NO - Not Useful.")
+
+    else:
+        messages.error(request, "Invalid label.")
+
+    return redirect("email_detail", deal_id=deal.id)
 
 def reset_gmail_connection(request):
     GmailAccount.objects.all().delete()

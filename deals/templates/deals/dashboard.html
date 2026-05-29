@@ -35,6 +35,12 @@
             margin-bottom: 12px;
         }
 
+        .hint {
+            color: #4b5563;
+            font-size: 14px;
+            margin-top: 6px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -47,10 +53,22 @@
             padding: 12px;
             text-align: left;
             font-size: 14px;
+            vertical-align: top;
         }
 
         th {
             background: #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        tr.email-row {
+            cursor: pointer;
+        }
+
+        tr.email-row:hover {
+            background: #f1f5f9;
         }
 
         .yes {
@@ -62,13 +80,55 @@
             color: red;
             font-weight: bold;
         }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-green {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-blue {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .subject-cell {
+            max-width: 320px;
+        }
+
+        .subject-title {
+            font-weight: bold;
+            color: #111827;
+        }
+
+        .sender {
+            color: #6b7280;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
     </style>
 </head>
 
 <body>
     <header>
         <h1>Real Estate Deal Automation Dashboard</h1>
-        <p>Reads Gmail, analyzes deals, and sends WhatsApp alerts.</p>
+        <p>Reads Gmail, analyzes deals, and saves emails for labeling.</p>
     </header>
 
     <div class="container">
@@ -78,6 +138,8 @@
             <a href="/settings/">Settings</a>
             <a href="/manual-deal/">Manual Deal</a>
             <a href="/read-gmail/">Read Gmail</a>
+            <a href="/label-emails/">Next Unlabeled Email</a>
+            <a href="/export-labeled-emails/">Export Labeled JSON</a>
         </div>
 
         {% for message in messages %}
@@ -86,52 +148,112 @@
             </div>
         {% endfor %}
 
-        <h2>Recent Deals</h2>
+        <h2>Saved Gmail Emails / Deals</h2>
+        <p class="hint">Double-click any row to open the full email and label it.</p>
 
-        <table>
-            <tr>
-                <th>Confidence</th>
-                <th>Lead?</th>
-                <th>Send to LLM?</th>
-                <th>Address</th>
-                <th>Price</th>
-                <th>ARV</th>
-                <th>Rehab</th>
-                <th>MAO</th>
-                <th>Flip Profit</th>
-                <th>BRRRR Cash Left</th>
-                <th>Qualifies</th>
-                <th>Recommendation</th>
-            </tr>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Saved</th>
+                        <th>Scored?</th>
+                        <th>Confidence</th>
+                        <th>Labeled?</th>
+                        <th>Lead?</th>
+                        <th>Send to LLM?</th>
+                        <th>Address</th>
+                        <th>Price</th>
+                        <th>ARV</th>
+                        <th>Rehab</th>
+                        <th>MAO</th>
+                        <th>Flip Profit</th>
+                        <th>BRRRR Cash Left</th>
+                        <th>Qualifies</th>
+                    </tr>
+                </thead>
 
-            {% for deal in deals %}
-            <tr>
-                <td>{{ deal.address }}</td>
-                <td>${{ deal.price|default:"-" }}</td>
-                <td>${{ deal.arv|default:"-" }}</td>
-                <td>${{ deal.rehab_cost|default:"-" }}</td>
-                <td>${{ deal.mao|default:"-" }}</td>
-                <td>${{ deal.flip_profit|default:"-" }}</td>
-                <td>${{ deal.brrrr_cash_left|default:"-" }}</td>
-                <td>{{ deal.difflib_score|default:0|floatformat:2 }}</td>
-                <td>{{ deal.is_potential_lead }}</td>
-                <td>{{ deal.send_to_llm }}</td>
-                <td>
-                    {% if deal.qualifies %}
-                        <span class="yes">YES</span>
-                    {% else %}
-                        <span class="no">NO</span>
-                    {% endif %}
-                </td>
+                <tbody>
+                    {% for deal in deals %}
+                    <tr class="email-row"
+                    data-url="{% url 'email_detail' deal.id %}"
+                    ondblclick="window.location.href=this.dataset.url;">
 
-                <td>{{ deal.recommendation }}</td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="9">No deals yet. Add one manually or read Gmail.</td>
-            </tr>
-            {% endfor %}
-        </table>
+                        <td class="subject-cell">
+                            <div class="subject-title">
+                                {{ deal.subject|default:"No subject" }}
+                            </div>
+                            <div class="sender">
+                                From: {{ deal.sender|default:"-" }}
+                            </div>
+                        </td>
+
+                        <td>{{ deal.created_at }}</td>
+
+                        <td>
+                            {% if deal.difflib_score != None %}
+                                <span class="badge badge-green">Scored</span>
+                            {% else %}
+                                <span class="badge badge-red">Not scored</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if deal.difflib_score != None %}
+                                {{ deal.difflib_score|floatformat:2 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if deal.is_labeled %}
+                                <span class="badge badge-green">Labeled</span>
+                            {% else %}
+                                <span class="badge badge-red">Unlabeled</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if deal.is_potential_lead %}
+                                <span class="badge badge-green">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if deal.send_to_llm %}
+                                <span class="badge badge-blue">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
+
+                        <td>{{ deal.address|default:"-" }}</td>
+                        <td>${{ deal.price|default:"-" }}</td>
+                        <td>${{ deal.arv|default:"-" }}</td>
+                        <td>${{ deal.rehab_cost|default:"-" }}</td>
+                        <td>${{ deal.mao|default:"-" }}</td>
+                        <td>${{ deal.flip_profit|default:"-" }}</td>
+                        <td>${{ deal.brrrr_cash_left|default:"-" }}</td>
+
+                        <td>
+                            {% if deal.qualifies %}
+                                <span class="yes">YES</span>
+                            {% else %}
+                                <span class="no">NO</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="15">No emails saved yet. Connect Gmail or click Read Gmail.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
     </div>
 </body>

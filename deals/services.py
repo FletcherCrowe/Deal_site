@@ -384,7 +384,6 @@ def get_gmail_service():
 
     creds = Credentials.from_authorized_user_info(
         account.token_json,
-        SCOPES
     )
 
     if creds.expired and creds.refresh_token:
@@ -410,7 +409,6 @@ def get_specific_email(sender_email, email_number):
 
     creds = Credentials.from_authorized_user_file(
         "token.json",
-        SCOPES
     )
 
     service = build("gmail", "v1", credentials=creds)

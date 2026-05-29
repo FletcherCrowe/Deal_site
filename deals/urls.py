@@ -29,4 +29,10 @@ urlpatterns = [
     path("upload-labeled-emails/", views.upload_labeled_emails, name="upload_labeled_emails"),
     path("reset-gmail/", views.reset_gmail_connection, name="reset_gmail_connection"),
     path("gmail-status/", views.gmail_status, name="gmail_status"),
+    path("email-detail/<int:deal_id>/", views.email_detail, name="email_detail"),
+    path(
+        "email-detail/<int:deal_id>/save-label/",
+        views.save_email_label_from_detail,
+        name="save_email_label_from_detail"
+    ),
 ]

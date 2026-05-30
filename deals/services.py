@@ -521,45 +521,39 @@ def extract_message_body(payload):
     return ""
 
 
-def read_gmail_deals():
-    """
-    Reads Gmail messages, logs every email it sees, and catches errors
-    so one bad email does not crash the whole system.
-    """
+from email.utils import parseaddr
+from datetime import datetime, timezone
 
+
+def read_gmail_deals():
     settings = get_settings()
     service = get_gmail_service()
+
+    query = settings.gmail_query or "in:inbox newer_than:1d"
+
+    print("===== READ GMAIL START =====")
+    print("QUERY:", query)
+
     created = []
-    
 
-    try:
-        result = service.users().messages().list(
+    result = service.users().messages().list(
         userId="me",
-        q=settings.gmail_query or "in:inbox newer_than:7d",
+        q=query,
         maxResults=50
+    ).execute()
 
-        ).execute()
+    messages = result.get("messages", [])
 
-        messages = result.get("messages", [])
-        labels=result.get("labels", [])
-        print(f'labels: {labels}')
-    except Exception as e:
-        EmailReadLog.objects.create(
-            status="gmail_search_error",
-            error_message=str(e)
-        )
-        return created
-    print(f'Messages: {messages}')
+    print("MESSAGES FOUND:", len(messages))
+
     for msg in messages:
-        email_id = msg.get("id", "")
+        email_id = msg.get("id")
+
+        print("PROCESSING EMAIL:", email_id)
 
         try:
-            if Deal.objects.filter(email_id=None).exists():
-                EmailReadLog.objects.create(
-                    email_id=email_id,
-                    status="skipped_duplicate",
-                    error_message="Email was already processed."
-                )
+            if Deal.objects.filter(email_id=email_id).exists():
+                print("SKIPPED DUPLICATE:", email_id)
                 continue
 
             full_msg = service.users().messages().get(
@@ -567,16 +561,9 @@ def read_gmail_deals():
                 id=email_id,
                 format="full"
             ).execute()
-            gmail_received_at = None
 
-            if full_msg.get("internalDate"):
-                gmail_received_at = datetime.fromtimestamp(
-                    int(full_msg["internalDate"]) / 1000,
-                    tz=timezone.utc
-                )
             payload = full_msg.get("payload", {})
             headers = payload.get("headers", [])
-            snippet = full_msg.get("snippet", "")
 
             subject = ""
             sender = ""
@@ -591,50 +578,52 @@ def read_gmail_deals():
                 if name == "from":
                     sender = parseaddr(value)[1]
 
-            body,html_body  = extract_message_body(payload)
-            parsed = parse_deal_from_text(body)
+            gmail_received_at = None
 
- 
+            if full_msg.get("internalDate"):
+                gmail_received_at = datetime.fromtimestamp(
+                    int(full_msg["internalDate"]) / 1000,
+                    tz=timezone.utc
+                )
+
+            body, html_body = extract_message_bodies(payload)
+
+            # Parser should never be allowed to stop saving emails.
+            try:
+                parsed = parse_deal_from_text(body)
+            except Exception as parse_error:
+                print("PARSE ERROR:", parse_error)
+                parsed = {}
+
             deal = Deal.objects.create(
                 email_id=email_id,
                 sender=sender,
                 subject=subject,
-                body=body,
-                html_body=html_body,
+                body=body or "",
+                html_body=html_body or "",
                 raw_email_json=full_msg,
                 gmail_received_at=gmail_received_at,
                 **parsed
             )
 
-            analyze_deal(deal)
+            try:
+                analyze_deal(deal)
+            except Exception as analysis_error:
+                print("ANALYSIS ERROR:", analysis_error)
 
-            # Automatically score every new incoming email
-            score_email_against_labeled_examples(deal)
-            if Deal.objects.filter(email_id=email_id).exists():
-                print("SKIPPED DUPLICATE:", email_id)
-                continue
-            
+            try:
+                score_email_against_labeled_examples(deal)
+            except Exception as score_error:
+                print("SCORING ERROR:", score_error)
 
-            EmailReadLog.objects.create(
-                email_id=email_id,
-                sender=sender,
-                subject=subject,
-                snippet=snippet,
-                status="processed",
-                deal_created=True,
-                qualifies=deal.qualifies
-            )
-
+            print("SAVED:", subject)
             created.append(deal)
 
         except Exception as e:
-            EmailReadLog.objects.create(
-                email_id=email_id,
-                status="email_processing_error",
-                error_message=str(e)
-            )
-    print("Gmail query:", settings.gmail_query)
-    print("Messages found:", len(messages))
+            print("EMAIL PROCESSING FAILED:", email_id, str(e))
+
+    print("CREATED COUNT:", len(created))
+    print("===== READ GMAIL END =====")
 
     return created
 

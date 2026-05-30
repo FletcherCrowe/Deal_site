@@ -14,7 +14,7 @@ It handles:
 
 Keeping this logic in services.py makes the Django views cleaner.
 """
-
+from datetime import datetime, timezone
 import base64
 import re
 from email.utils import parseaddr
@@ -534,8 +534,10 @@ def read_gmail_deals():
 
     try:
         result = service.users().messages().list(
-            userId="me",
-            maxResults=20
+        userId="me",
+        q=settings.gmail_query or "in:inbox newer_than:7d",
+        maxResults=50
+
         ).execute()
 
         messages = result.get("messages", [])
@@ -550,7 +552,7 @@ def read_gmail_deals():
     print(f'Messages: {messages}')
     for msg in messages:
         email_id = msg.get("id", "")
-        
+
         try:
             if Deal.objects.filter(email_id=None).exists():
                 EmailReadLog.objects.create(
@@ -565,6 +567,13 @@ def read_gmail_deals():
                 id=email_id,
                 format="full"
             ).execute()
+            gmail_received_at = None
+
+            if full_msg.get("internalDate"):
+                gmail_received_at = datetime.fromtimestamp(
+                    int(full_msg["internalDate"]) / 1000,
+                    tz=timezone.utc
+                )
             payload = full_msg.get("payload", {})
             headers = payload.get("headers", [])
             snippet = full_msg.get("snippet", "")
@@ -593,6 +602,7 @@ def read_gmail_deals():
                 body=body,
                 html_body=html_body,
                 raw_email_json=full_msg,
+                gmail_received_at=gmail_received_at,
                 **parsed
             )
 
@@ -623,8 +633,9 @@ def read_gmail_deals():
                 status="email_processing_error",
                 error_message=str(e)
             )
-    print("created")
-    print(created)
+    print("Gmail query:", settings.gmail_query)
+    print("Messages found:", len(messages))
+
     return created
 
 

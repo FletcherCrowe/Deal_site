@@ -246,21 +246,9 @@ def email_logs(request):
     logs = EmailReadLog.objects.order_by("-created_at")[:100]
     return render(request, "deals/email_logs.html", {"logs": logs})
 def dashboard(request):
-    """
-    Main homepage.
+    deals = Deal.objects.order_by("-gmail_received_at", "-created_at")[:100]
 
-    Shows recent deals and their calculated results.
-    """
-
-    deals = Deal.objects.order_by("-created_at")[:20]
-
-    return render(
-        request,
-        "deals/dashboard.html",
-        {
-            "deals": deals
-        }
-    )
+    return render(request, "deals/dashboard.html", {"deals": deals})
 
 
 def settings_page(request):

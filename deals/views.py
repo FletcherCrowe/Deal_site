@@ -249,7 +249,19 @@ def dashboard(request):
     deals = Deal.objects.order_by("-gmail_received_at", "-created_at")[:100]
 
     return render(request, "deals/dashboard.html", {"deals": deals})
+from django.contrib import messages
+from django.shortcuts import redirect
 
+def reset_all_email_data(request):
+    Deal.objects.all().delete()
+    GmailAccount.objects.all().delete()
+
+    messages.success(
+        request,
+        "Deleted Gmail connection and saved emails."
+    )
+
+    return redirect("settings")
 
 def settings_page(request):
     """

@@ -35,4 +35,9 @@ urlpatterns = [
         views.save_email_label_from_detail,
         name="save_email_label_from_detail"
     ),
+    path(
+    "reset-all-email-data/",
+    views.reset_all_email_data,
+    name="reset_all_email_data"
+    ),
 ]

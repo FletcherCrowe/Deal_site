@@ -95,7 +95,7 @@ class Deal(models.Model):
         unique=True,
         null=True
     )
-
+    gmail_received_at = models.DateTimeField(null=True, blank=True)
     # Email source info.
     sender = models.EmailField(blank=True)
     subject = models.CharField(max_length=255, blank=True)

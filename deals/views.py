@@ -44,7 +44,50 @@ from .models import GmailAccount
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from .models import Deal
+from django.http import JsonResponse
+from .services import get_gmail_service, get_settings
 
+
+def debug_gmail_fetch(request):
+    settings = get_settings()
+    service = get_gmail_service()
+
+    query = settings.gmail_query or "in:inbox newer_than:1d"
+
+    result = service.users().messages().list(
+        userId="me",
+        q=query,
+        maxResults=10
+    ).execute()
+
+    messages = result.get("messages", [])
+
+    output = {
+        "query_used": query,
+        "messages_found": len(messages),
+        "messages": []
+    }
+
+    for msg in messages:
+        full_msg = service.users().messages().get(
+            userId="me",
+            id=msg["id"],
+            format="metadata",
+            metadataHeaders=["Subject", "From", "Date"]
+        ).execute()
+
+        headers = full_msg.get("payload", {}).get("headers", [])
+
+        item = {
+            "id": msg["id"],
+            "internalDate": full_msg.get("internalDate"),
+            "headers": headers,
+            "snippet": full_msg.get("snippet", "")
+        }
+
+        output["messages"].append(item)
+
+    return JsonResponse(output, safe=False)
 
 def email_detail(request, deal_id):
     deal = get_object_or_404(Deal, id=deal_id)

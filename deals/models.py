@@ -96,6 +96,10 @@ class Deal(models.Model):
         null=True
     )
     gmail_received_at = models.DateTimeField(null=True, blank=True)
+    llm_checked = models.BooleanField(default=False)
+    llm_is_valid_lead = models.BooleanField(default=False)
+    llm_reason = models.TextField(blank=True)
+    llm_missing_fields = models.JSONField(blank=True, null=True)
     # Email source info.
     sender = models.EmailField(blank=True)
     subject = models.CharField(max_length=255, blank=True)

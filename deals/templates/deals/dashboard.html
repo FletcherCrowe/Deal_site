@@ -155,6 +155,10 @@
             <table>
                 <thead>
                     <tr>
+                        <th>LLM Checked</th>
+                        <th>LLM Lead?</th>
+                        <th>LLM Reason</th>
+                        <th>Missing Fields</th>
                         <th>Email</th>
                         <th>Saved</th>
                         <th>Scored?</th>
@@ -170,6 +174,7 @@
                         <th>Flip Profit</th>
                         <th>BRRRR Cash Left</th>
                         <th>Qualifies</th>
+
                     </tr>
                 </thead>
 
@@ -178,7 +183,31 @@
                     <tr class="email-row"
                     data-url="{% url 'email_detail' deal.id %}"
                     ondblclick="window.location.href=this.dataset.url;">
+                        <td>
+                        {% if deal.llm_checked %}
+                            <span class="badge badge-green">Checked</span>
+                        {% else %}
+                            <span class="badge badge-red">Not Checked</span>
+                        {% endif %}
+                    </td>
 
+                    <td>
+                        {% if deal.llm_is_valid_lead %}
+                            <span class="badge badge-green">YES</span>
+                        {% else %}
+                            <span class="badge badge-red">NO</span>
+                        {% endif %}
+                    </td>
+
+                    <td>{{ deal.llm_reason|default:"-" }}</td>
+
+                    <td>
+                        {% if deal.llm_missing_fields %}
+                            {{ deal.llm_missing_fields }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                         <td class="subject-cell">
                             <div class="subject-title">
                                 {{ deal.subject|default:"No subject" }}

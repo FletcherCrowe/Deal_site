@@ -595,6 +595,10 @@ def read_gmail_deals():
                 print("PARSE ERROR:", parse_error)
                 parsed = {}
 
+            if Deal.objects.filter(email_id=email_id).exists():
+                print("SKIPPED DUPLICATE:", email_id)
+                continue
+
             deal = Deal.objects.create(
                 email_id=email_id,
                 sender=sender,
@@ -602,7 +606,6 @@ def read_gmail_deals():
                 body=body or "",
                 html_body=html_body or "",
                 raw_email_json=full_msg,
-                gmail_received_at=gmail_received_at,
                 **parsed
             )
 
@@ -616,7 +619,11 @@ def read_gmail_deals():
             except Exception as score_error:
                 print("SCORING ERROR:", score_error)
 
-            print("SAVED:", subject)
+            try:
+                classify_email_yes_no_with_llm(deal)
+            except Exception as llm_error:
+                print("LLM CLASSIFIER ERROR:", llm_error)
+
             created.append(deal)
 
         except Exception as e:
@@ -626,7 +633,111 @@ def read_gmail_deals():
     print("===== READ GMAIL END =====")
 
     return created
+from huggingface_hub import InferenceClient
 
+HF_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+import os
+def classify_email_yes_no_with_llm(deal):
+    """
+    First-pass LLM classifier.
+
+    Returns YES only if the email contains ALL required client categories:
+    - location
+    - price
+    - year built
+    - square footage
+    - ARV / after repair value
+    - beds/baths
+    - taxes
+    - rehab estimate
+    - rent estimate
+    - suggested offer
+    """
+
+    hf_token = os.environ.get("HF_TOKEN")
+
+    if not hf_token:
+        raise Exception("HF_TOKEN environment variable is missing.")
+
+    client = InferenceClient(
+        model=HF_MODEL,
+        token=hf_token
+    )
+
+    email_text = f"""
+Subject: {deal.subject}
+
+From: {deal.sender}
+
+Body:
+{deal.body[:8000]}
+"""
+
+    prompt = f"""
+You are a strict real estate email classifier.
+
+Return YES only if the email contains a valid property listing AND includes ALL of these categories:
+
+1. location/address/city/zip
+2. price/list price/asking price
+3. year built
+4. square footage
+5. ARV or after repair value
+6. beds and baths
+7. taxes
+8. rehab estimate
+9. rent estimate
+10. suggested offer
+
+If even one category is missing, return NO.
+
+Return ONLY valid JSON in this exact format:
+
+{{
+  "answer": "YES" or "NO",
+  "reason": "short reason",
+  "missing_fields": []
+}}
+
+Email:
+{email_text}
+"""
+
+    response = client.chat_completion(
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a strict classifier. Return only valid JSON."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        max_tokens=300,
+        temperature=0.0,
+    )
+
+    raw_text = response.choices[0].message["content"]
+
+    try:
+        data = json.loads(raw_text)
+    except Exception:
+        data = {
+            "answer": "NO",
+            "reason": f"Invalid JSON returned by model: {raw_text[:500]}",
+            "missing_fields": ["unknown"]
+        }
+
+    answer = str(data.get("answer", "NO")).upper().strip()
+
+    deal.llm_checked = True
+    deal.llm_is_valid_lead = answer == "YES"
+    deal.llm_reason = data.get("reason", "")
+    deal.save()
+
+    return deal.llm_is_valid_lead
 
 def send_whatsapp_message(message):
     """

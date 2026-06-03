@@ -180,7 +180,16 @@
 
                 <label>Rehab Cost Per Square Foot</label>
                 <input name="rehab_cost_per_sqft" value="{{ settings.rehab_cost_per_sqft }}">
+                <label>LLM Required Categories</label>
+                <textarea
+                    name="llm_required_categories"
+                    rows="10"
+                    style="width:100%; padding:10px;"
+                >{{ settings.llm_required_categories }}</textarea>
 
+                <p style="color:#666; font-size:14px;">
+                    One category per line. The LLM will only return YES if the email contains all listed categories.
+                </p>
                 <h2>Offer Template</h2>
 
                 <label>Email Template</label>

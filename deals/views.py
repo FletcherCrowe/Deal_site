@@ -332,6 +332,8 @@ def settings_page(request):
             "whatsapp_to_number",
             "allowed_zip_codes",
             "offer_template",
+            "llm_required_categories",
+
         ]
 
         for field in text_fields:

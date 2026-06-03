@@ -29,7 +29,18 @@ class AppSettings(models.Model):
         max_length=255,
         default='subject:(deal OR property OR wholesale)'
     )
-
+    llm_required_categories = models.TextField(
+    default="""Location/address/city/zip
+    Price/list price/asking price
+    Year built
+    Square footage
+    ARV / after repair value
+    Beds and baths
+    Taxes
+    Rehab estimate
+    Rent estimate
+    Suggested offer"""
+    )
     # WhatsApp Cloud API settings.
     # This is for Meta's official WhatsApp API, not Twilio.
     whatsapp_token = models.TextField(blank=True)

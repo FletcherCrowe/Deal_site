@@ -664,45 +664,46 @@ def classify_email_yes_no_with_llm(deal):
         model=HF_MODEL,
         token=hf_token
     )
-
+    settings = get_settings()
+    required_categories = settings.llm_required_categories.strip()
     email_text = f"""
-Subject: {deal.subject}
+    Subject: {deal.subject}
 
-From: {deal.sender}
+    From: {deal.sender}
 
-Body:
-{deal.body[:8000]}
-"""
+    Body:
+    {deal.body[:8000]}
+
+    """
 
     prompt = f"""
-You are a strict real estate email classifier.
+    You are a strict real estate lead classifier.
 
-Return YES only if the email contains a valid property listing AND includes ALL of these categories:
+    Return YES only if this email contains a valid property listing AND includes ALL of these required categories:
 
-1. location/address/city/zip
-2. price/list price/asking price
-3. year built
-4. square footage
-5. ARV or after repair value
-6. beds and baths
-7. taxes
-8. rehab estimate
-9. rent estimate
-10. suggested offer
+    {required_categories}
 
-If even one category is missing, return NO.
+    If even one required category is missing, return NO.
 
-Return ONLY valid JSON in this exact format:
+    Return ONLY valid JSON exactly like this:
 
-{{
-  "answer": "YES" or "NO",
-  "reason": "short reason",
-  "missing_fields": []
-}}
+    {{
+    "answer": "YES",
+    "reason": "short reason",
+    "missing_fields": []
+    }}
 
-Email:
-{email_text}
-"""
+    or:
+
+    {{
+    "answer": "NO",
+    "reason": "short reason",
+    "missing_fields": ["field1", "field2"]
+    }}
+
+    Email:
+    {email_text}
+    """
 
     response = client.chat_completion(
         messages=[

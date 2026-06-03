@@ -106,6 +106,10 @@ class Deal(models.Model):
         unique=True,
         null=True
     )
+    zip_allowed = models.BooleanField(default=False)
+    math_checked = models.BooleanField(default=False)
+    math_qualifies = models.BooleanField(default=False)
+    math_reason = models.TextField(blank=True)
     gmail_received_at = models.DateTimeField(null=True, blank=True)
     llm_checked = models.BooleanField(default=False)
     llm_is_valid_lead = models.BooleanField(default=False)

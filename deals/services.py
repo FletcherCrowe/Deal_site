@@ -720,7 +720,12 @@ Email:
     )
 
     raw_text = response.choices[0].message["content"]
+    print("===== LLM RAW RESPONSE START =====")
+    print(raw_text)
+    print("===== LLM RAW RESPONSE END =====")
 
+    deal.llm_raw_response = raw_text
+    deal.save()
     try:
         data = json.loads(raw_text)
     except Exception:
@@ -734,6 +739,8 @@ Email:
 
     deal.llm_checked = True
     deal.llm_is_valid_lead = answer == "YES"
+    deal.llm_missing_fields = data.get("missing_fields", [])
+
     deal.llm_reason = data.get("reason", "")
     deal.save()
 

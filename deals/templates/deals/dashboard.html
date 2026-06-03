@@ -155,6 +155,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>LLM Raw</th>
                         <th>LLM Checked</th>
                         <th>LLM Lead?</th>
                         <th>LLM Reason</th>
@@ -183,6 +184,9 @@
                     <tr class="email-row"
                     data-url="{% url 'email_detail' deal.id %}"
                     ondblclick="window.location.href=this.dataset.url;">
+                    <td style="max-width:300px; white-space:pre-wrap;">
+                        {{ deal.llm_raw_response|default:"-"|truncatechars:500 }}
+                    </td>
                         <td>
                         {% if deal.llm_checked %}
                             <span class="badge badge-green">Checked</span>

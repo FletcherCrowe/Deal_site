@@ -42,7 +42,312 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
+import os
+import json
+import re
+from decimal import Decimal, InvalidOperation
+from huggingface_hub import InferenceClient
 
+HF_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+
+def clean_money(value):
+    if value in [None, ""]:
+        return None
+
+    try:
+        cleaned = str(value).replace("$", "").replace(",", "").strip()
+        if cleaned.lower() in ["none", "null", "unknown", "n/a"]:
+            return None
+        return Decimal(cleaned)
+    except InvalidOperation:
+        return None
+
+
+def clean_int(value):
+    if value in [None, ""]:
+        return None
+
+    try:
+        cleaned = str(value).replace(",", "").strip()
+        if cleaned.lower() in ["none", "null", "unknown", "n/a"]:
+            return None
+        return int(float(cleaned))
+    except Exception:
+        return None
+
+
+def clean_decimal(value):
+    if value in [None, ""]:
+        return None
+
+    try:
+        cleaned = str(value).strip()
+        if cleaned.lower() in ["none", "null", "unknown", "n/a"]:
+            return None
+        return Decimal(cleaned)
+    except Exception:
+        return None
+
+def extract_property_listings_with_llm(deal):
+    hf_token = os.environ.get("HF_TOKEN")
+
+    if not hf_token:
+        raise Exception("HF_TOKEN environment variable is missing.")
+
+    client = InferenceClient(
+        model=HF_MODEL,
+        token=hf_token,
+    )
+
+    email_text = f"""
+Subject: {deal.subject}
+From: {deal.sender}
+
+Body:
+{(deal.body or "")[:12000]}
+"""
+
+    prompt = f"""
+You extract real estate property listings from emails.
+
+The email may contain one property or multiple properties.
+
+Return ONLY valid JSON.
+
+Return this exact structure:
+
+{{
+  "has_property_listings": true,
+  "listings": [
+    {{
+      "address": "",
+      "zip_code": "",
+      "price": null,
+      "arv": null,
+      "rehab_cost": null,
+      "rent": null,
+      "taxes": null,
+      "beds": null,
+      "baths": null,
+      "sqft": null,
+      "year_built": null,
+      "suggested_offer": null,
+      "missing_fields": []
+    }}
+  ]
+}}
+
+Rules:
+- If multiple properties are in the email, return one object per property.
+- Extract ZIP per property if available.
+- Do not combine multiple properties into one.
+- Use null for missing values.
+- Numbers should be plain numbers, not strings.
+- If there are no actual property deal listings, return:
+{{
+  "has_property_listings": false,
+  "listings": []
+}}
+
+Required fields to look for:
+- address/location/zip
+- price/list price/asking price
+- ARV / after repair value
+- rehab cost/repair estimate
+- rent estimate
+- taxes
+- beds
+- baths
+- square footage
+- year built
+- suggested offer
+
+Email:
+{email_text}
+"""
+
+    response = client.chat_completion(
+        messages=[
+            {
+                "role": "system",
+                "content": "You return only valid JSON. No markdown. No commentary.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        max_tokens=1800,
+        temperature=0.0,
+    )
+
+    raw_text = response.choices[0].message["content"]
+
+    print("===== MULTI LISTING LLM RAW START =====")
+    print(raw_text)
+    print("===== MULTI LISTING LLM RAW END =====")
+
+    try:
+        data = json.loads(raw_text)
+    except Exception as e:
+        print("MULTI LISTING JSON ERROR:", e)
+        data = {
+            "has_property_listings": False,
+            "listings": [],
+            "raw_error": raw_text[:1000],
+        }
+
+    return data
+from .models import PropertyListing
+
+
+def save_llm_listings_to_db(deal, extracted_data):
+    PropertyListing.objects.filter(deal=deal).delete()
+
+    listings = extracted_data.get("listings", [])
+
+    created_listings = []
+
+    for item in listings:
+        address = item.get("address", "") or ""
+        zip_code = item.get("zip_code", "") or extract_zip_from_address_or_text(
+            address,
+            deal.body
+        )
+
+        listing = PropertyListing.objects.create(
+            deal=deal,
+            address=address,
+            zip_code=zip_code,
+
+            price=clean_money(item.get("price")),
+            arv=clean_money(item.get("arv")),
+            rehab_cost=clean_money(item.get("rehab_cost")),
+            rent=clean_money(item.get("rent")),
+            taxes=clean_money(item.get("taxes")),
+
+            beds=clean_decimal(item.get("beds")),
+            baths=clean_decimal(item.get("baths")),
+            sqft=clean_int(item.get("sqft")),
+            year_built=clean_int(item.get("year_built")),
+            suggested_offer=clean_money(item.get("suggested_offer")),
+
+            raw_llm_json=item,
+        )
+
+        created_listings.append(listing)
+
+    return created_listings
+def analyze_property_listing(listing):
+    settings = get_settings()
+
+    allowed_zips = get_allowed_zip_list()
+
+    if allowed_zips:
+        listing.zip_allowed = listing.zip_code in allowed_zips
+    else:
+        listing.zip_allowed = True
+
+    if not listing.zip_allowed:
+        listing.qualifies = False
+        listing.reason = f"ZIP {listing.zip_code or 'missing'} is not allowed."
+        listing.save()
+        return listing
+
+    # Buy box checks
+    if listing.beds is None or listing.beds < Decimal("2"):
+        listing.qualifies = False
+        listing.reason = "Does not meet minimum beds."
+        listing.save()
+        return listing
+
+    if listing.baths is None or listing.baths < Decimal("1"):
+        listing.qualifies = False
+        listing.reason = "Does not meet minimum baths."
+        listing.save()
+        return listing
+
+    if listing.price is None or listing.price > Decimal("150000"):
+        listing.qualifies = False
+        listing.reason = "Price missing or above $150,000."
+        listing.save()
+        return listing
+
+    if listing.year_built is None or listing.year_built < 1970:
+        listing.qualifies = False
+        listing.reason = "Year built missing or before 1970."
+        listing.save()
+        return listing
+
+    if listing.sqft is None or listing.sqft < 1300:
+        listing.qualifies = False
+        listing.reason = "Square footage missing or below 1,300."
+        listing.save()
+        return listing
+
+    if listing.arv is None:
+        listing.qualifies = False
+        listing.reason = "Missing ARV. Needs comparable validation."
+        listing.save()
+        return listing
+
+    rehab = listing.rehab_cost
+
+    if rehab is None:
+        rehab = Decimal(listing.sqft) * Decimal("35")
+        listing.rehab_cost = rehab
+
+    arv = listing.arv
+    price = listing.price
+
+    mao = (arv * Decimal("0.70")) - rehab
+    flip_profit = arv - (price + rehab)
+
+    total_investment = price + rehab
+    loan = arv * Decimal("0.75")
+    brrrr_cash_left = total_investment - loan
+
+    listing.mao = mao
+    listing.flip_profit = flip_profit
+    listing.brrrr_cash_left = brrrr_cash_left
+
+    listing.qualifies_flip = flip_profit >= Decimal("30000")
+    listing.qualifies_brrrr = brrrr_cash_left <= Decimal("5000")
+    listing.qualifies = listing.qualifies_flip or listing.qualifies_brrrr
+
+    if listing.qualifies_flip and listing.qualifies_brrrr:
+        listing.reason = "Qualifies for Fix & Flip and BRRRR."
+    elif listing.qualifies_flip:
+        listing.reason = "Qualifies for Fix & Flip."
+    elif listing.qualifies_brrrr:
+        listing.reason = "Qualifies for BRRRR."
+    else:
+        listing.reason = "Does not meet flip or BRRRR profit rules."
+
+    listing.save()
+    return listing
+
+def get_allowed_zip_list():
+    settings = get_settings()
+
+    raw = settings.allowed_zip_codes or ""
+
+    return [
+        z.strip()
+        for z in raw.replace("\n", ",").split(",")
+        if z.strip()
+    ]
+
+
+def extract_zip_from_address_or_text(address, text=""):
+    combined = f"{address or ''}\n{text or ''}"
+    match = re.search(r"\b\d{5}\b", combined)
+
+    if match:
+        return match.group(0)
+
+    return ""
 def get_settings():
     """
     Get the one AppSettings record.
@@ -624,6 +929,12 @@ def read_gmail_deals():
             except Exception as llm_error:
                 print("LLM CLASSIFIER ERROR:", llm_error)
 
+            if deal.llm_is_valid_lead:
+                try:
+                    process_deal_after_llm_yes(deal)
+                except Exception as process_error:
+                    print("POST-LLM DEAL PROCESSING ERROR:", process_error)
+
             created.append(deal)
 
         except Exception as e:
@@ -746,7 +1057,59 @@ def classify_email_yes_no_with_llm(deal):
     deal.save()
 
     return deal.llm_is_valid_lead
+import re
+from decimal import Decimal
 
+
+def extract_zip_from_text(text):
+    """
+    Finds a 5-digit US ZIP code.
+    """
+    if not text:
+        return ""
+
+    match = re.search(r"\b\d{5}\b", text)
+
+    if match:
+        return match.group(0)
+
+    return ""
+
+
+def get_allowed_zip_list():
+    settings = get_settings()
+
+    raw = settings.allowed_zip_codes or ""
+
+    return [
+        z.strip()
+        for z in raw.replace("\n", ",").split(",")
+        if z.strip()
+    ]
+
+
+def check_zip_allowed(deal):
+    """
+    Uses deal.zip_code if already parsed.
+    Otherwise tries to find ZIP inside subject/body.
+    """
+
+    zip_code = deal.zip_code or extract_zip_from_text(
+        f"{deal.subject}\n{deal.body}"
+    )
+
+    deal.zip_code = zip_code
+
+    allowed_zips = get_allowed_zip_list()
+
+    if not allowed_zips:
+        deal.zip_allowed = True
+    else:
+        deal.zip_allowed = zip_code in allowed_zips
+
+    deal.save()
+
+    return deal.zip_allowed
 def send_whatsapp_message(message):
     """
     Send a WhatsApp message using Meta WhatsApp Cloud API.
@@ -794,3 +1157,167 @@ def send_whatsapp_message(message):
     response = requests.post(url, headers=headers, json=payload)
 
     return response.status_code, response.text
+def apply_scraped_data_to_deal(deal, scraped_data):
+    """
+    Only fills missing values.
+    Does not overwrite values already found in the email.
+    """
+
+    if not scraped_data:
+        return deal
+
+    field_map = {
+        "arv": "arv",
+        "rehab_cost": "rehab_cost",
+        "rent": "rent",
+        "taxes": "taxes",
+        "year_built": "year_built",
+        "sqft": "sqft",
+        "beds": "beds",
+        "baths": "baths",
+        "price": "price",
+        "zip_code": "zip_code",
+        "address": "address",
+    }
+
+    for source_key, model_field in field_map.items():
+        value = scraped_data.get(source_key)
+
+        if value in [None, ""]:
+            continue
+
+        current_value = getattr(deal, model_field, None)
+
+        if current_value in [None, ""]:
+            setattr(deal, model_field, value)
+
+    deal.save()
+    return deal
+def run_client_deal_math(deal):
+    """
+    Client rules:
+
+    Fix & Flip:
+    MAO = (ARV * 0.70) - Repair Costs
+    Profit = ARV - (Purchase Price + Repair Costs)
+    Qualifies if Profit >= 30000
+
+    BRRRR:
+    Total Investment = Purchase Price + Rehab Costs
+    Loan = 0.75 * ARV
+    Cash Left = Total Investment - Loan
+    Qualifies if Cash Left <= 5000
+    """
+
+    settings = get_settings()
+
+    deal.math_checked = True
+
+    if not deal.zip_allowed:
+        deal.math_qualifies = False
+        deal.math_reason = "ZIP code is not in allowed list."
+        deal.save()
+        return False
+
+    if not deal.price or not deal.arv:
+        deal.math_qualifies = False
+        deal.math_reason = "Missing price or ARV."
+        deal.save()
+        return False
+
+    rehab_cost = deal.rehab_cost
+
+    if not rehab_cost:
+        if deal.sqft:
+            rehab_cost = Decimal(deal.sqft) * Decimal(settings.rehab_cost_per_sqft)
+            deal.rehab_cost = rehab_cost
+        else:
+            deal.math_qualifies = False
+            deal.math_reason = "Missing rehab cost and square footage."
+            deal.save()
+            return False
+
+    arv = Decimal(deal.arv)
+    price = Decimal(deal.price)
+    rehab = Decimal(rehab_cost)
+
+    flip_multiplier = Decimal(str(settings.flip_arv_multiplier or 0.70))
+    loan_multiplier = Decimal(str(settings.brrrr_loan_multiplier or 0.75))
+
+    mao = (arv * flip_multiplier) - rehab
+    flip_profit = arv - (price + rehab)
+
+    total_investment = price + rehab
+    loan = loan_multiplier * arv
+    brrrr_cash_left = total_investment - loan
+
+    deal.mao = mao
+    deal.flip_profit = flip_profit
+    deal.brrrr_cash_left = brrrr_cash_left
+
+    flip_ok = flip_profit >= Decimal(settings.min_flip_profit or 30000)
+    brrrr_ok = brrrr_cash_left <= Decimal(settings.max_brrrr_cash_left or 5000)
+
+    if flip_ok and brrrr_ok:
+        deal.math_qualifies = True
+        deal.qualifies = True
+        deal.recommendation = "Qualifies for Fix & Flip and BRRRR."
+    elif flip_ok:
+        deal.math_qualifies = True
+        deal.qualifies = True
+        deal.recommendation = "Qualifies for Fix & Flip."
+    elif brrrr_ok:
+        deal.math_qualifies = True
+        deal.qualifies = True
+        deal.recommendation = "Qualifies for BRRRR."
+    else:
+        deal.math_qualifies = False
+        deal.qualifies = False
+        deal.recommendation = "Does not qualify."
+
+    deal.math_reason = deal.recommendation
+    deal.save()
+
+    return deal.math_qualifies
+def process_deal_after_llm_yes(deal):
+    extracted_data = extract_property_listings_with_llm(deal)
+
+    listings = save_llm_listings_to_db(deal, extracted_data)
+
+    qualified_listings = []
+
+    for listing in listings:
+        analyze_property_listing(listing)
+
+        if listing.qualifies:
+            qualified_listings.append(listing)
+
+    if qualified_listings:
+        deal.qualifies = True
+        deal.recommendation = f"{len(qualified_listings)} listing(s) qualify."
+    else:
+        deal.qualifies = False
+        deal.recommendation = "No listings qualified."
+
+    deal.save()
+
+    for listing in qualified_listings:
+        message = (
+            f"Qualified deal found!\n"
+            f"Address: {listing.address}\n"
+            f"ZIP: {listing.zip_code}\n"
+            f"Price: ${listing.price}\n"
+            f"ARV: ${listing.arv}\n"
+            f"Rehab: ${listing.rehab_cost}\n"
+            f"MAO: ${listing.mao}\n"
+            f"Flip Profit: ${listing.flip_profit}\n"
+            f"BRRRR Cash Left: ${listing.brrrr_cash_left}\n"
+            f"Reason: {listing.reason}"
+        )
+
+        try:
+            send_whatsapp_message(message)
+        except Exception as e:
+            print("WHATSAPP SEND ERROR:", e)
+
+    return qualified_listings

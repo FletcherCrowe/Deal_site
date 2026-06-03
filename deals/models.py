@@ -2,6 +2,38 @@ from django.db import models
 
 raw_email_json = models.JSONField(blank=True, null=True)
 processed_for_training = models.BooleanField(default=False)
+class PropertyListing(models.Model):
+    deal = models.ForeignKey("Deal", on_delete=models.CASCADE, related_name="listings")
+
+    address = models.CharField(max_length=500, blank=True)
+    zip_code = models.CharField(max_length=20, blank=True)
+
+    price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    arv = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rehab_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rent = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    taxes = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    beds = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    baths = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    sqft = models.IntegerField(null=True, blank=True)
+    year_built = models.IntegerField(null=True, blank=True)
+    suggested_offer = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    zip_allowed = models.BooleanField(default=False)
+
+    mao = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    flip_profit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    brrrr_cash_left = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    qualifies_flip = models.BooleanField(default=False)
+    qualifies_brrrr = models.BooleanField(default=False)
+    qualifies = models.BooleanField(default=False)
+
+    reason = models.TextField(blank=True)
+    raw_llm_json = models.JSONField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
 class AppSettings(models.Model):
     """
     This model stores the editable settings for the entire app.

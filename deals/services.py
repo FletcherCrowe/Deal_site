@@ -90,6 +90,48 @@ def clean_decimal(value):
         return None
 
 def extract_property_listings_with_llm(deal):
+    email_text = deal.body or ""
+
+    all_zips = find_all_zip_codes(email_text)
+    property_blocks = split_email_into_property_blocks(email_text)
+
+    print("ALL ZIP CODES FOUND:", all_zips)
+    print("PROPERTY BLOCKS FOUND:", len(property_blocks))
+
+    listings = []
+
+    # Best path: multiple detected property blocks
+    if property_blocks:
+        for block in property_blocks:
+            try:
+                listing_data = extract_single_listing_with_llm(block)
+                listings.append(listing_data)
+            except Exception as e:
+                print("SINGLE LISTING EXTRACTION ERROR:", e)
+
+                listings.append({
+                    "address": block.get("address", ""),
+                    "zip_code": block.get("zip_code", ""),
+                    "price": None,
+                    "arv": None,
+                    "rehab_cost": None,
+                    "rent": None,
+                    "taxes": None,
+                    "beds": None,
+                    "baths": None,
+                    "sqft": None,
+                    "year_built": None,
+                    "suggested_offer": None,
+                    "missing_fields": ["single_listing_extraction_failed"],
+                })
+
+        return {
+            "has_property_listings": len(listings) > 0,
+            "all_zip_codes_found": all_zips,
+            "listings": listings,
+        }
+
+    # Fallback: no address blocks detected, use original whole-email LLM extraction
     hf_token = os.environ.get("HF_TOKEN")
 
     if not hf_token:
@@ -100,25 +142,18 @@ def extract_property_listings_with_llm(deal):
         token=hf_token,
     )
 
-    email_text = f"""
-Subject: {deal.subject}
-From: {deal.sender}
-
-Body:
-{(deal.body or "")[:12000]}
-"""
-
     prompt = f"""
 You extract real estate property listings from emails.
 
-The email may contain one property or multiple properties.
+The email may contain one property or many properties.
 
-Return ONLY valid JSON.
+Return ONLY valid JSON. No markdown.
 
-Return this exact structure:
+Use this exact structure:
 
 {{
   "has_property_listings": true,
+  "all_zip_codes_found": [],
   "listings": [
     {{
       "address": "",
@@ -139,64 +174,49 @@ Return this exact structure:
 }}
 
 Rules:
-- If multiple properties are in the email, return one object per property.
-- Extract ZIP per property if available.
-- Do not combine multiple properties into one.
+- Return one object per property.
+- Do not combine multiple properties.
 - Use null for missing values.
-- Numbers should be plain numbers, not strings.
-- If there are no actual property deal listings, return:
-{{
-  "has_property_listings": false,
-  "listings": []
-}}
-
-Required fields to look for:
-- address/location/zip
-- price/list price/asking price
-- ARV / after repair value
-- rehab cost/repair estimate
-- rent estimate
-- taxes
-- beds
-- baths
-- square footage
-- year built
-- suggested offer
+- Numbers should be plain numbers.
+- If a value is a range like "$225,000 - $235,000", use the lower number.
+- Extract all ZIP codes and put them in all_zip_codes_found.
 
 Email:
-{email_text}
+{email_text[:14000]}
 """
 
     response = client.chat_completion(
         messages=[
             {
                 "role": "system",
-                "content": "You return only valid JSON. No markdown. No commentary.",
+                "content": "Return only valid JSON. No markdown. No explanation.",
             },
             {
                 "role": "user",
                 "content": prompt,
             },
         ],
-        max_tokens=1800,
+        max_tokens=2200,
         temperature=0.0,
     )
 
     raw_text = response.choices[0].message["content"]
 
-    print("===== MULTI LISTING LLM RAW START =====")
+    print("===== WHOLE EMAIL MULTI LISTING RAW =====")
     print(raw_text)
-    print("===== MULTI LISTING LLM RAW END =====")
 
     try:
         data = json.loads(raw_text)
-    except Exception as e:
-        print("MULTI LISTING JSON ERROR:", e)
+    except Exception:
         data = {
             "has_property_listings": False,
+            "all_zip_codes_found": all_zips,
             "listings": [],
             "raw_error": raw_text[:1000],
         }
+
+    if not data.get("all_zip_codes_found"):
+        data["all_zip_codes_found"] = all_zips
 
     return data
 from .models import PropertyListing
@@ -1321,3 +1341,143 @@ def process_deal_after_llm_yes(deal):
             print("WHATSAPP SEND ERROR:", e)
 
     return qualified
+    import re
+
+
+ADDRESS_ZIP_PATTERN = re.compile(
+    r"(?P<address>\d{2,6}\s+[^\n,]+(?:,\s*[^\n,]+)*,\s*[A-Z]{2}\s+(?P<zip>\d{5}))",
+    re.IGNORECASE
+)
+
+
+def find_all_zip_codes(text):
+    """
+    Returns all unique 5-digit ZIP codes in the email.
+    """
+    if not text:
+        return []
+
+    zips = re.findall(r"\b\d{5}\b", text)
+    return list(dict.fromkeys(zips))
+
+
+def split_email_into_property_blocks(text):
+    """
+    Splits one email into multiple property blocks using address + ZIP lines.
+
+    Example match:
+    320 S Yates Rd, Memphis, TN 38120
+    """
+
+    if not text:
+        return []
+
+    matches = list(ADDRESS_ZIP_PATTERN.finditer(text))
+
+    blocks = []
+
+    for index, match in enumerate(matches):
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+
+        block_text = text[start:end].strip()
+
+        blocks.append({
+            "address": match.group("address").strip(),
+            "zip_code": match.group("zip").strip(),
+            "text": block_text,
+        })
+
+    return blocks
+def extract_single_listing_with_llm(block):
+    hf_token = os.environ.get("HF_TOKEN")
+
+    if not hf_token:
+        raise Exception("HF_TOKEN environment variable is missing.")
+
+    client = InferenceClient(
+        model=HF_MODEL,
+        token=hf_token,
+    )
+
+    prompt = f"""
+You extract ONE real estate property listing.
+
+Return ONLY valid JSON. No markdown.
+
+Use this exact structure:
+
+{{
+  "address": "",
+  "zip_code": "",
+  "price": null,
+  "arv": null,
+  "rehab_cost": null,
+  "rent": null,
+  "taxes": null,
+  "beds": null,
+  "baths": null,
+  "sqft": null,
+  "year_built": null,
+  "suggested_offer": null,
+  "missing_fields": []
+}}
+
+Rules:
+- Extract only the property in this text block.
+- Use null for missing values.
+- If rehab says ZERO or MOVE IN READY, use 0.
+- If a value is a range like "$225,000 - $235,000", use the lower number.
+- Numbers should be plain numbers, not strings.
+
+Property block:
+{block["text"][:5000]}
+"""
+
+    response = client.chat_completion(
+        messages=[
+            {
+                "role": "system",
+                "content": "Return only valid JSON. No markdown. No explanation.",
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        max_tokens=700,
+        temperature=0.0,
+    )
+
+    raw_text = response.choices[0].message["content"]
+
+    print("===== SINGLE LISTING LLM RAW =====")
+    print(raw_text)
+
+    try:
+        data = json.loads(raw_text)
+    except Exception:
+        data = {
+            "address": block.get("address", ""),
+            "zip_code": block.get("zip_code", ""),
+            "price": None,
+            "arv": None,
+            "rehab_cost": None,
+            "rent": None,
+            "taxes": None,
+            "beds": None,
+            "baths": None,
+            "sqft": None,
+            "year_built": None,
+            "suggested_offer": None,
+            "missing_fields": ["json_parse_failed"],
+            "raw_error": raw_text[:1000],
+        }
+
+    if not data.get("address"):
+        data["address"] = block.get("address", "")
+
+    if not data.get("zip_code"):
+        data["zip_code"] = block.get("zip_code", "")
+
+    return data

@@ -1284,24 +1284,24 @@ def process_deal_after_llm_yes(deal):
 
     listings = save_llm_listings_to_db(deal, extracted_data)
 
-    qualified_listings = []
+    qualified = []
 
     for listing in listings:
         analyze_property_listing(listing)
 
         if listing.qualifies:
-            qualified_listings.append(listing)
+            qualified.append(listing)
 
-    if qualified_listings:
+    if qualified:
         deal.qualifies = True
-        deal.recommendation = f"{len(qualified_listings)} listing(s) qualify."
+        deal.recommendation = f"{len(qualified)} listing(s) qualify."
     else:
         deal.qualifies = False
         deal.recommendation = "No listings qualified."
 
     deal.save()
 
-    for listing in qualified_listings:
+    for listing in qualified:
         message = (
             f"Qualified deal found!\n"
             f"Address: {listing.address}\n"
@@ -1320,4 +1320,4 @@ def process_deal_after_llm_yes(deal):
         except Exception as e:
             print("WHATSAPP SEND ERROR:", e)
 
-    return qualified_listings
+    return qualified

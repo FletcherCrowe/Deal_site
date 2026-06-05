@@ -34,6 +34,9 @@ class PropertyListing(models.Model):
     raw_llm_json = models.JSONField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.address or f"Listing {self.id}"
 class AppSettings(models.Model):
     """
     This model stores the editable settings for the entire app.

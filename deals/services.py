@@ -869,6 +869,7 @@ def read_gmail_deals():
                 classify_email_yes_no_with_llm(deal)
             except Exception as llm_error:
                 print("LLM CLASSIFIER ERROR:", llm_error)
+            deal.refresh_from_db()
             if deal.llm_is_valid_lead:
                 try:
                     process_deal_after_llm_yes(deal)

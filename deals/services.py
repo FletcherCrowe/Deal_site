@@ -50,45 +50,94 @@ from huggingface_hub import InferenceClient
 
 HF_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
-
-def clean_money(value):
-    if value in [None, ""]:
-        return None
-
-    try:
-        cleaned = str(value).replace("$", "").replace(",", "").strip()
-        if cleaned.lower() in ["none", "null", "unknown", "n/a"]:
-            return None
-        return Decimal(cleaned)
-    except InvalidOperation:
-        return None
-
-
 def clean_int(value):
     if value in [None, ""]:
         return None
 
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        return int(value)
+
+    value = str(value).strip()
+
+    if value.lower() in ["none", "null", "unknown", "n/a"]:
+        return None
+
+    cleaned = re.sub(r"[^\d.]", "", value)
+
+    if not cleaned:
+        return None
+
     try:
-        cleaned = str(value).replace(",", "").strip()
-        if cleaned.lower() in ["none", "null", "unknown", "n/a"]:
-            return None
         return int(float(cleaned))
     except Exception:
         return None
+def clean_money(value):
+    """
+    Converts money values into Decimal.
 
+    Handles:
+    - 295000
+    - "295000"
+    - "$295,000"
+    - "$225,000 - $235,000"
+    - "ZERO; MOVE IN READY"
+    - None
+    """
 
+    if value in [None, ""]:
+        return None
+
+    # If LLM already returned a number, handle it directly.
+    if isinstance(value, (int, float, Decimal)):
+        return Decimal(str(value))
+
+    value = str(value).strip()
+
+    if value.lower() in ["none", "null", "unknown", "n/a"]:
+        return None
+
+    if "zero" in value.lower():
+        return Decimal("0")
+
+    # If value is a range, use lower number.
+    # Example: "$225,000 - $235,000"
+    if "-" in value:
+        value = value.split("-")[0].strip()
+
+    # Remove everything except digits and decimal point.
+    cleaned = re.sub(r"[^\d.]", "", value)
+
+    if not cleaned:
+        return None
+
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation:
+        return None
 def clean_decimal(value):
     if value in [None, ""]:
         return None
 
+    if isinstance(value, (int, float, Decimal)):
+        return Decimal(str(value))
+
+    value = str(value).strip()
+
+    if value.lower() in ["none", "null", "unknown", "n/a"]:
+        return None
+
+    cleaned = re.sub(r"[^\d.]", "", value)
+
+    if not cleaned:
+        return None
+
     try:
-        cleaned = str(value).strip()
-        if cleaned.lower() in ["none", "null", "unknown", "n/a"]:
-            return None
         return Decimal(cleaned)
     except Exception:
         return None
-
 def extract_property_listings_with_llm(deal):
     email_text = str(deal.body or "")
 
@@ -381,27 +430,6 @@ def get_settings():
     return settings
 
 
-def clean_money(value):
-    """
-    Convert a money string into an integer.
-
-    Examples:
-    "$150,000" -> 150000
-    "150,000" -> 150000
-    "150000" -> 150000
-
-    If the value is missing, return None.
-    """
-
-    if not value:
-        return None
-
-    cleaned = re.sub(r"[^\d]", "", value)
-
-    if not cleaned:
-        return None
-
-    return int(cleaned)
 
 from difflib import SequenceMatcher
 from .models import Deal

@@ -231,10 +231,12 @@ def save_llm_listings_to_db(deal, extracted_data):
 
     for item in listings:
         address = item.get("address", "") or ""
-        zip_code = item.get("zip_code", "") or extract_zip_from_address_or_text(
-            address,
-            deal.body
-        )
+        zip_code = str(item.get("zip_code") or "").strip()
+
+        if not zip_code:
+            zip_code = extract_zip_from_address_or_text(address, deal.body)
+
+        zip_code = str(zip_code or "").strip()
 
         listing = PropertyListing.objects.create(
             deal=deal,
@@ -262,7 +264,9 @@ def save_llm_listings_to_db(deal, extracted_data):
 def analyze_property_listing(listing):
     settings = get_settings()
 
-    allowed_zips = get_allowed_zip_list()
+    allowed_zips = [str(z).strip() for z in get_allowed_zip_list()]
+
+    listing.zip_code = str(listing.zip_code or "").strip()
 
     if allowed_zips:
         listing.zip_allowed = listing.zip_code in allowed_zips
@@ -359,10 +363,10 @@ def get_allowed_zip_list():
         if z.strip()
     ]
 
+def extract_zip_from_address_or_text(address="", text=""):
+    combined = f"{str(address or '')}\n{str(text or '')}"
 
-def extract_zip_from_address_or_text(address, text=""):
-    combined = f"{address or ''}\n{text or ''}"
-    match = re.search(r"\b\d{5}\b", combined)
+    match = re.search(r"\b(?:38\d{3})\b", combined)
 
     if match:
         return match.group(0)
@@ -1351,15 +1355,13 @@ ADDRESS_ZIP_PATTERN = re.compile(
 
 
 def find_all_zip_codes(text):
-    """
-    Returns all unique 5-digit ZIP codes in the email.
-    """
     if not text:
         return []
 
-    zips = re.findall(r"\b\d{5}\b", text)
-    return list(dict.fromkeys(zips))
+    text = str(text)
 
+    zips = re.findall(r"\b(?:38\d{3})\b", text)
+    return list(dict.fromkeys(zips))
 
 def split_email_into_property_blocks(text):
     """

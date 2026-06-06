@@ -290,11 +290,10 @@ def email_logs(request):
     return render(request, "deals/email_logs.html", {"logs": logs})
 from .models import PropertyListing
 
-
-
-
 def dashboard(request):
     listings = PropertyListing.objects.select_related("deal").order_by("-created_at")[:200]
+
+    print("DASHBOARD LISTINGS COUNT:", listings.count())
 
     return render(request, "deals/dashboard.html", {
         "listings": listings

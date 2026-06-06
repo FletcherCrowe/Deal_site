@@ -805,7 +805,7 @@ def read_gmail_deals():
                 userId="me",
                 id=email_id,
                 format="full"
-                
+
             ).execute()
 
             payload = full_msg.get("payload", {})
@@ -869,6 +869,11 @@ def read_gmail_deals():
                 classify_email_yes_no_with_llm(deal)
             except Exception as llm_error:
                 print("LLM CLASSIFIER ERROR:", llm_error)
+            if deal.llm_is_valid_lead:
+                try:
+                    process_deal_after_llm_yes(deal)
+                except Exception as process_error:
+                    print("POST-LLM MULTI LISTING ERROR:", process_error)
 
             if deal.llm_is_valid_lead:
                 try:

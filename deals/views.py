@@ -288,10 +288,15 @@ def oauth2callback(request):
 def email_logs(request):
     logs = EmailReadLog.objects.order_by("-created_at")[:100]
     return render(request, "deals/email_logs.html", {"logs": logs})
-def dashboard(request):
-    deals = Deal.objects.order_by("-gmail_received_at", "-created_at")[:100]
+from .models import Deal, PropertyListing
 
-    return render(request, "deals/dashboard.html", {"deals": deals})
+
+def dashboard(request):
+    listings = PropertyListing.objects.select_related("deal").order_by("-created_at")[:200]
+
+    return render(request, "deals/dashboard.html", {
+        "listings": listings
+    })
 from django.contrib import messages
 from django.shortcuts import redirect
 

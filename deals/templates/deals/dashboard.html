@@ -186,26 +186,26 @@
     </thead>
 
     <tbody>
-        {% for deal in deals %}
+        {% for listing in listings %}
         <tr class="email-row"
             data-url="{% url 'email_detail' deal.id %}"
             ondblclick="window.location.href=this.dataset.url;">
 
             <td class="subject-cell">
                 <div class="subject-title">
-                    {{ deal.subject|default:"No subject" }}
+                    {{ listing.subject|default:"No subject" }}
                 </div>
                 <div class="sender">
-                    From: {{ deal.sender|default:"-" }}
+                    From: {{ listing.sender|default:"-" }}
                 </div>
             </td>
 
-            <td>{{ deal.created_at }}</td>
+            <td>{{ listing.created_at }}</td>
 
-            <td>{{ deal.zip_code|default:"-" }}</td>
+            <td>{{ listing.zip_code|default:"-" }}</td>
 
             <td>
-                {% if deal.zip_allowed %}
+                {% if listing.zip_allowed %}
                     <span class="badge badge-green">YES</span>
                 {% else %}
                     <span class="badge badge-red">NO</span>
@@ -213,7 +213,7 @@
             </td>
 
             <td>
-                {% if deal.llm_checked %}
+                {% if listing.llm_checked %}
                     <span class="badge badge-green">Checked</span>
                 {% else %}
                     <span class="badge badge-red">Not Checked</span>
@@ -221,49 +221,49 @@
             </td>
 
             <td>
-                {% if deal.llm_is_valid_lead %}
+                {% if listing.llm_is_valid_lead %}
                     <span class="badge badge-green">YES</span>
                 {% else %}
                     <span class="badge badge-red">NO</span>
                 {% endif %}
             </td>
 
-            <td>{{ deal.llm_reason|default:"-" }}</td>
+            <td>{{ listing.llm_reason|default:"-" }}</td>
 
             <td>
-                {% if deal.llm_missing_fields %}
-                    {{ deal.llm_missing_fields }}
+                {% if listing.llm_missing_fields %}
+                    {{ listing.llm_missing_fields }}
                 {% else %}
                     -
                 {% endif %}
             </td>
 
             <td style="max-width:300px; white-space:pre-wrap;">
-                {{ deal.llm_raw_response|default:"-"|truncatechars:500 }}
+                {{ listing.llm_raw_response|default:"-"|truncatechars:500 }}
             </td>
 
             <td>
-                {% if deal.send_to_llm %}
+                {% if listing.send_to_llm %}
                     <span class="badge badge-blue">YES</span>
                 {% else %}
                     <span class="badge badge-red">NO</span>
                 {% endif %}
             </td>
 
-            <td>{{ deal.address|default:"-" }}</td>
-            <td>${{ deal.price|default:"-" }}</td>
-            <td>${{ deal.arv|default:"-" }}</td>
-            <td>${{ deal.rehab_cost|default:"-" }}</td>
-            <td>${{ deal.mao|default:"-" }}</td>
-            <td>${{ deal.flip_profit|default:"-" }}</td>
-            <td>${{ deal.brrrr_cash_left|default:"-" }}</td>
+            <td>{{ listing.address|default:"-" }}</td>
+            <td>${{ listing.price|default:"-" }}</td>
+            <td>${{ listing.arv|default:"-" }}</td>
+            <td>${{ listing.rehab_cost|default:"-" }}</td>
+            <td>${{ listing.mao|default:"-" }}</td>
+            <td>${{ listing.flip_profit|default:"-" }}</td>
+            <td>${{ listing.brrrr_cash_left|default:"-" }}</td>
 
-            <td>{{ deal.math_checked }}</td>
-            <td>{{ deal.math_qualifies }}</td>
-            <td>{{ deal.math_reason|default:"-" }}</td>
+            <td>{{ listing.math_checked }}</td>
+            <td>{{ listing.math_qualifies }}</td>
+            <td>{{ listing.math_reason|default:"-" }}</td>
 
             <td>
-                {% if deal.qualifies %}
+                {% if listing.qualifies %}
                     <span class="yes">YES</span>
                 {% else %}
                     <span class="no">NO</span>

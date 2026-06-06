@@ -298,6 +298,26 @@ def dashboard(request):
     return render(request, "deals/dashboard.html", {
         "listings": listings
     })
+from django.http import JsonResponse
+from .models import Deal, PropertyListing
+
+
+def debug_counts(request):
+    return JsonResponse({
+        "deals": Deal.objects.count(),
+        "property_listings": PropertyListing.objects.count(),
+        "latest_listings": [
+            {
+                "address": l.address,
+                "zip_code": l.zip_code,
+                "price": str(l.price),
+                "qualifies": l.qualifies,
+                "reason": l.reason,
+                "email_subject": l.deal.subject,
+            }
+            for l in PropertyListing.objects.select_related("deal").order_by("-created_at")[:10]
+        ]
+    })
 from django.contrib import messages
 from django.shortcuts import redirect
 

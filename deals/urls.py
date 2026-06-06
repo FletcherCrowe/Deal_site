@@ -41,4 +41,5 @@ urlpatterns = [
     name="reset_all_email_data"
     ),
     path("debug-gmail-fetch/", views.debug_gmail_fetch, name="debug_gmail_fetch"),
+    path("debug-counts/", views.debug_counts, name="debug_counts"),
 ]

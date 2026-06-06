@@ -288,7 +288,9 @@ def oauth2callback(request):
 def email_logs(request):
     logs = EmailReadLog.objects.order_by("-created_at")[:100]
     return render(request, "deals/email_logs.html", {"logs": logs})
-from .models import Deal, PropertyListing
+from .models import PropertyListing
+
+
 
 
 def dashboard(request):

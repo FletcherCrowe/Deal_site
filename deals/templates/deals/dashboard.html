@@ -41,11 +41,16 @@
             margin-top: 6px;
         }
 
+        .table-wrap {
+            overflow-x: auto;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
             background: white;
             margin-top: 20px;
+            min-width: 1900px;
         }
 
         th, td {
@@ -105,7 +110,7 @@
         }
 
         .subject-cell {
-            max-width: 320px;
+            max-width: 360px;
         }
 
         .subject-title {
@@ -117,10 +122,13 @@
             color: #6b7280;
             font-size: 12px;
             margin-top: 4px;
+            line-height: 1.4;
         }
 
-        .table-wrap {
-            overflow-x: auto;
+        .raw-cell,
+        .reason-cell {
+            max-width: 320px;
+            white-space: pre-wrap;
         }
     </style>
 </head>
@@ -128,7 +136,7 @@
 <body>
     <header>
         <h1>Real Estate Deal Automation Dashboard</h1>
-        <p>Reads Gmail, analyzes deals, and saves emails for labeling.</p>
+        <p>Reads Gmail, analyzes deals, and saves each property listing separately.</p>
     </header>
 
     <div class="container">
@@ -148,135 +156,159 @@
             </div>
         {% endfor %}
 
-        <h2>Saved Gmail Emails / Deals</h2>
-        <p class="hint">Double-click any row to open the full email and label it.</p>
+        <h2>Extracted Property Listings</h2>
+        <p class="hint">Double-click any row to open the original full email.</p>
 
         <div class="table-wrap">
             <table>
-    <thead>
-        <tr>
-            <th>Email</th>
-            <th>Saved</th>
+                <thead>
+                    <tr>
+                        <th>Listing / Email</th>
+                        <th>Saved</th>
 
-            <th>ZIP</th>
-            <th>ZIP Allowed?</th>
+                        <th>ZIP</th>
+                        <th>ZIP Allowed?</th>
 
-            <th>LLM Checked</th>
-            <th>LLM Lead?</th>
-            <th>LLM Reason</th>
-            <th>Missing Fields</th>
-            <th>LLM Raw</th>
+                        <th>LLM Checked</th>
+                        <th>LLM Email Lead?</th>
+                        <th>LLM Reason</th>
+                        <th>Missing Fields</th>
+                        <th>LLM Raw</th>
 
-            <th>Send to LLM?</th>
+                        <th>Address</th>
+                        <th>Price</th>
+                        <th>ARV</th>
+                        <th>Rehab</th>
+                        <th>Rent</th>
+                        <th>Taxes</th>
+                        <th>Beds/Baths</th>
+                        <th>Sqft</th>
+                        <th>Year Built</th>
+                        <th>Suggested Offer</th>
 
-            <th>Address</th>
-            <th>Price</th>
-            <th>ARV</th>
-            <th>Rehab</th>
-            <th>MAO</th>
-            <th>Flip Profit</th>
-            <th>BRRRR Cash Left</th>
+                        <th>MAO</th>
+                        <th>Flip Profit</th>
+                        <th>BRRRR Cash Left</th>
 
-            <th>Math Checked?</th>
-            <th>Math Qualifies?</th>
-            <th>Math Reason</th>
+                        <th>Flip?</th>
+                        <th>BRRRR?</th>
+                        <th>Qualifies?</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
 
-            <th>Qualifies</th>
-        </tr>
-    </thead>
+                <tbody>
+                    {% for listing in listings %}
+                    <tr class="email-row"
+                        data-url="{% url 'email_detail' listing.deal.id %}"
+                        ondblclick="window.location.href=this.dataset.url;">
 
-    <tbody>
-        {% for listing in listings %}
-        <tr class="email-row"
-            data-url="{% url 'email_detail' deal.id %}"
-            ondblclick="window.location.href=this.dataset.url;">
+                        <td class="subject-cell">
+                            <div class="subject-title">
+                                {{ listing.address|default:"No address" }}
+                            </div>
+                            <div class="sender">
+                                Email: {{ listing.deal.subject|default:"No subject" }}<br>
+                                From: {{ listing.deal.sender|default:"-" }}
+                            </div>
+                        </td>
 
-            <td class="subject-cell">
-                <div class="subject-title">
-                    {{ listing.subject|default:"No subject" }}
-                </div>
-                <div class="sender">
-                    From: {{ listing.sender|default:"-" }}
-                </div>
-            </td>
+                        <td>{{ listing.created_at }}</td>
 
-            <td>{{ listing.created_at }}</td>
+                        <td>{{ listing.zip_code|default:"-" }}</td>
 
-            <td>{{ listing.zip_code|default:"-" }}</td>
+                        <td>
+                            {% if listing.zip_allowed %}
+                                <span class="badge badge-green">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
 
-            <td>
-                {% if listing.zip_allowed %}
-                    <span class="badge badge-green">YES</span>
-                {% else %}
-                    <span class="badge badge-red">NO</span>
-                {% endif %}
-            </td>
+                        <td>
+                            {% if listing.deal.llm_checked %}
+                                <span class="badge badge-green">Checked</span>
+                            {% else %}
+                                <span class="badge badge-red">Not Checked</span>
+                            {% endif %}
+                        </td>
 
-            <td>
-                {% if listing.llm_checked %}
-                    <span class="badge badge-green">Checked</span>
-                {% else %}
-                    <span class="badge badge-red">Not Checked</span>
-                {% endif %}
-            </td>
+                        <td>
+                            {% if listing.deal.llm_is_valid_lead %}
+                                <span class="badge badge-green">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
 
-            <td>
-                {% if listing.llm_is_valid_lead %}
-                    <span class="badge badge-green">YES</span>
-                {% else %}
-                    <span class="badge badge-red">NO</span>
-                {% endif %}
-            </td>
+                        <td class="reason-cell">
+                            {{ listing.deal.llm_reason|default:"-" }}
+                        </td>
 
-            <td>{{ listing.llm_reason|default:"-" }}</td>
+                        <td class="reason-cell">
+                            {% if listing.deal.llm_missing_fields %}
+                                {{ listing.deal.llm_missing_fields }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
 
-            <td>
-                {% if listing.llm_missing_fields %}
-                    {{ listing.llm_missing_fields }}
-                {% else %}
-                    -
-                {% endif %}
-            </td>
+                        <td class="raw-cell">
+                            {{ listing.deal.llm_raw_response|default:"-"|truncatechars:500 }}
+                        </td>
 
-            <td style="max-width:300px; white-space:pre-wrap;">
-                {{ listing.llm_raw_response|default:"-"|truncatechars:500 }}
-            </td>
+                        <td>{{ listing.address|default:"-" }}</td>
+                        <td>${{ listing.price|default:"-" }}</td>
+                        <td>${{ listing.arv|default:"-" }}</td>
+                        <td>${{ listing.rehab_cost|default:"-" }}</td>
+                        <td>${{ listing.rent|default:"-" }}</td>
+                        <td>${{ listing.taxes|default:"-" }}</td>
+                        <td>{{ listing.beds|default:"-" }}/{{ listing.baths|default:"-" }}</td>
+                        <td>{{ listing.sqft|default:"-" }}</td>
+                        <td>{{ listing.year_built|default:"-" }}</td>
+                        <td>${{ listing.suggested_offer|default:"-" }}</td>
 
-            <td>
-                {% if listing.send_to_llm %}
-                    <span class="badge badge-blue">YES</span>
-                {% else %}
-                    <span class="badge badge-red">NO</span>
-                {% endif %}
-            </td>
+                        <td>${{ listing.mao|default:"-" }}</td>
+                        <td>${{ listing.flip_profit|default:"-" }}</td>
+                        <td>${{ listing.brrrr_cash_left|default:"-" }}</td>
 
-            <td>{{ listing.address|default:"-" }}</td>
-            <td>${{ listing.price|default:"-" }}</td>
-            <td>${{ listing.arv|default:"-" }}</td>
-            <td>${{ listing.rehab_cost|default:"-" }}</td>
-            <td>${{ listing.mao|default:"-" }}</td>
-            <td>${{ listing.flip_profit|default:"-" }}</td>
-            <td>${{ listing.brrrr_cash_left|default:"-" }}</td>
+                        <td>
+                            {% if listing.qualifies_flip %}
+                                <span class="badge badge-green">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
 
-            <td>{{ listing.math_checked }}</td>
-            <td>{{ listing.math_qualifies }}</td>
-            <td>{{ listing.math_reason|default:"-" }}</td>
+                        <td>
+                            {% if listing.qualifies_brrrr %}
+                                <span class="badge badge-green">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
 
-            <td>
-                {% if listing.qualifies %}
-                    <span class="yes">YES</span>
-                {% else %}
-                    <span class="no">NO</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="21">No emails saved yet. Connect Gmail or click Read Gmail.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+                        <td>
+                            {% if listing.qualifies %}
+                                <span class="badge badge-green">YES</span>
+                            {% else %}
+                                <span class="badge badge-red">NO</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="reason-cell">
+                            {{ listing.reason|default:"-" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="26">
+                            No property listings saved yet. Connect Gmail, click Read Gmail, or wait for the listener.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
 
     </div>

@@ -226,11 +226,11 @@ def save_llm_listings_to_db(deal, extracted_data):
     PropertyListing.objects.filter(deal=deal).delete()
 
     listings = extracted_data.get("listings", [])
-
     created_listings = []
 
     for item in listings:
-        address = item.get("address", "") or ""
+        address = str(item.get("address") or "").strip()
+
         zip_code = str(item.get("zip_code") or "").strip()
 
         if not zip_code:
@@ -363,19 +363,7 @@ def get_allowed_zip_list():
         if z.strip()
     ]
 
-def extract_zip_from_address_or_text(address="", text=""):
-    """
-    Safely extracts a Memphis-area ZIP from address/text.
-    """
 
-    combined = f"{str(address or '')}\n{str(text or '')}"
-
-    match = re.search(r"\b38\d{3}\b", combined)
-
-    if match:
-        return match.group(0)
-
-    return ""
 def get_settings():
     """
     Get the one AppSettings record.
@@ -1281,25 +1269,33 @@ ADDRESS_ZIP_PATTERN = re.compile(
 )
 
 
+def find_all_zip_codes(text):
+    text = str(text or "")
+    zips = re.findall(r"\b38\d{3}\b", text)
+    return list(dict.fromkeys(zips))
+
+
+def extract_zip_from_address_or_text(address="", text=""):
+    combined = f"{str(address or '')}\n{str(text or '')}"
+    match = re.search(r"\b38\d{3}\b", combined)
+
+    if match:
+        return match.group(0)
+
+    return ""
+
+
 def split_email_into_property_blocks(text):
-    """
-    Splits one email into multiple property blocks using address + ZIP lines.
-
-    Example:
-    320 S Yates Rd, Memphis, TN 38120
-    """
-
     text = str(text or "")
 
     matches = list(ADDRESS_ZIP_PATTERN.finditer(text))
-
     blocks = []
 
     for index, match in enumerate(matches):
         start = match.start()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
 
-        block_text = text[start:end].strip()
+        block_text = str(text[start:end] or "").strip()
 
         blocks.append({
             "address": str(match.group("address") or "").strip(),
@@ -1309,18 +1305,6 @@ def split_email_into_property_blocks(text):
 
     return blocks
 
-
-def find_all_zip_codes(text):
-    """
-    Returns all unique ZIP codes that start with 38.
-    This avoids accidentally treating street numbers like 12420 as ZIP codes.
-    """
-
-    text = str(text or "")
-
-    zips = re.findall(r"\b38\d{3}\b", text)
-
-    return list(dict.fromkeys(zips))
 
 def split_email_into_property_blocks(text):
     """

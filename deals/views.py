@@ -304,6 +304,7 @@ from .models import Deal, PropertyListing
 from django.http import JsonResponse
 from .models import Deal, PropertyListing
 from .services import process_deal_after_llm_yes
+import traceback
 
 
 def debug_process_latest_deal(request):
@@ -321,6 +322,7 @@ def debug_process_latest_deal(request):
             "deal_id": deal.id,
             "subject": deal.subject,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "before_listings": before,
             "after_listings": PropertyListing.objects.count(),
         })

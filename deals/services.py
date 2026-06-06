@@ -90,7 +90,7 @@ def clean_decimal(value):
         return None
 
 def extract_property_listings_with_llm(deal):
-    email_text = deal.body or ""
+    email_text = str(deal.body or "")
 
     all_zips = find_all_zip_codes(email_text)
     property_blocks = split_email_into_property_blocks(email_text)
@@ -364,9 +364,13 @@ def get_allowed_zip_list():
     ]
 
 def extract_zip_from_address_or_text(address="", text=""):
+    """
+    Safely extracts a Memphis-area ZIP from address/text.
+    """
+
     combined = f"{str(address or '')}\n{str(text or '')}"
 
-    match = re.search(r"\b(?:38\d{3})\b", combined)
+    match = re.search(r"\b38\d{3}\b", combined)
 
     if match:
         return match.group(0)
@@ -1272,18 +1276,50 @@ def process_deal_after_llm_yes(deal):
 
 
 ADDRESS_ZIP_PATTERN = re.compile(
-    r"(?P<address>\d{2,6}\s+[^\n,]+(?:,\s*[^\n,]+)*,\s*[A-Z]{2}\s+(?P<zip>\d{5}))",
+    r"(?P<address>\d{1,6}\s+[^\n,]+(?:,\s*[^\n,]+)*,\s*(?:TN|MS)\s+(?P<zip>38\d{3}))",
     re.IGNORECASE
 )
 
 
+def split_email_into_property_blocks(text):
+    """
+    Splits one email into multiple property blocks using address + ZIP lines.
+
+    Example:
+    320 S Yates Rd, Memphis, TN 38120
+    """
+
+    text = str(text or "")
+
+    matches = list(ADDRESS_ZIP_PATTERN.finditer(text))
+
+    blocks = []
+
+    for index, match in enumerate(matches):
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+
+        block_text = text[start:end].strip()
+
+        blocks.append({
+            "address": str(match.group("address") or "").strip(),
+            "zip_code": str(match.group("zip") or "").strip(),
+            "text": block_text,
+        })
+
+    return blocks
+
+
 def find_all_zip_codes(text):
-    if not text:
-        return []
+    """
+    Returns all unique ZIP codes that start with 38.
+    This avoids accidentally treating street numbers like 12420 as ZIP codes.
+    """
 
-    text = str(text)
+    text = str(text or "")
 
-    zips = re.findall(r"\b(?:38\d{3})\b", text)
+    zips = re.findall(r"\b38\d{3}\b", text)
+
     return list(dict.fromkeys(zips))
 
 def split_email_into_property_blocks(text):

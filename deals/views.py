@@ -301,7 +301,47 @@ def dashboard(request):
 from django.http import JsonResponse
 from .models import Deal, PropertyListing
 
+from django.http import JsonResponse
+from .models import Deal, PropertyListing
+from .services import process_deal_after_llm_yes
 
+
+def debug_process_latest_deal(request):
+    deal = Deal.objects.order_by("-created_at").first()
+
+    if not deal:
+        return JsonResponse({"error": "No deals found"})
+
+    before = PropertyListing.objects.count()
+
+    try:
+        qualified = process_deal_after_llm_yes(deal)
+    except Exception as e:
+        return JsonResponse({
+            "deal_id": deal.id,
+            "subject": deal.subject,
+            "error": str(e),
+            "before_listings": before,
+            "after_listings": PropertyListing.objects.count(),
+        })
+
+    return JsonResponse({
+        "deal_id": deal.id,
+        "subject": deal.subject,
+        "before_listings": before,
+        "after_listings": PropertyListing.objects.count(),
+        "qualified_count": len(qualified),
+        "latest_listings": [
+            {
+                "address": l.address,
+                "zip_code": l.zip_code,
+                "price": str(l.price),
+                "qualifies": l.qualifies,
+                "reason": l.reason,
+            }
+            for l in PropertyListing.objects.filter(deal=deal)
+        ]
+    })
 def debug_counts(request):
     return JsonResponse({
         "deals": Deal.objects.count(),

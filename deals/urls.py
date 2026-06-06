@@ -42,4 +42,5 @@ urlpatterns = [
     ),
     path("debug-gmail-fetch/", views.debug_gmail_fetch, name="debug_gmail_fetch"),
     path("debug-counts/", views.debug_counts, name="debug_counts"),
+    path("debug-process-latest-deal/", views.debug_process_latest_deal, name="debug_process_latest_deal"),
 ]

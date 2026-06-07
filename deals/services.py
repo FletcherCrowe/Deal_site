@@ -279,7 +279,8 @@ def save_llm_listings_to_db(deal, extracted_data):
 
     for item in listings:
         address = str(item.get("address") or "").strip()
-
+        raw_text = str(item.get("raw_text") or item.get("text") or item.get("property_block") or "")
+        fallback_bbs = extract_beds_baths_sqft_from_text(raw_text)
         zip_code = str(item.get("zip_code") or "").strip()
 
         if not zip_code:
@@ -298,9 +299,9 @@ def save_llm_listings_to_db(deal, extracted_data):
             rent=clean_money(item.get("rent")),
             taxes=clean_money(item.get("taxes")),
 
-            beds=clean_decimal(item.get("beds")),
-            baths=clean_decimal(item.get("baths")),
-            sqft=clean_int(item.get("sqft")),
+            beds=clean_decimal(item.get("beds") or fallback_bbs.get("beds")),
+            baths=clean_decimal(item.get("baths") or fallback_bbs.get("baths")),
+            sqft=clean_int(item.get("sqft") or fallback_bbs.get("sqft")),
             year_built=clean_int(item.get("year_built")),
             suggested_offer=clean_money(item.get("suggested_offer")),
 
@@ -310,6 +311,63 @@ def save_llm_listings_to_db(deal, extracted_data):
         created_listings.append(listing)
 
     return created_listings
+def extract_beds_baths_sqft_from_text(text):
+    """
+    Handles patterns like:
+    Bed/Bath & SQFT: 4/3 & 2,778
+    Beds/Baths/Sqft: 3/2 & 1,248
+    4 bed 3 bath 2,778 sqft
+    """
+
+    text = str(text or "")
+
+    # Pattern: Bed/Bath & SQFT: 4/3 & 2,778
+    match = re.search(
+        r"bed\s*/?\s*bath\s*&?\s*sqft\s*:\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*&\s*([\d,]+)",
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+        return {
+            "beds": match.group(1),
+            "baths": match.group(2),
+            "sqft": match.group(3),
+        }
+
+    # Pattern: 4/3 & 2,778
+    match = re.search(
+        r"\b(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*&\s*([\d,]+)\b",
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+        return {
+            "beds": match.group(1),
+            "baths": match.group(2),
+            "sqft": match.group(3),
+        }
+
+    # Pattern: 4 bed 3 bath 2778 sqft
+    match = re.search(
+        r"(\d+(?:\.\d+)?)\s*bed[s]?\D+(\d+(?:\.\d+)?)\s*bath[s]?\D+([\d,]+)\s*sqft",
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+        return {
+            "beds": match.group(1),
+            "baths": match.group(2),
+            "sqft": match.group(3),
+        }
+
+    return {
+        "beds": None,
+        "baths": None,
+        "sqft": None,
+    }
 def analyze_property_listing(listing):
     settings = get_settings()
 
@@ -1504,7 +1562,16 @@ Property block:
             "missing_fields": ["json_parse_failed"],
             "raw_error": raw_text[:1000],
         }
+    fallback_bbs = extract_beds_baths_sqft_from_text(block.get("text", ""))
 
+    if data.get("beds") in [None, "", "unknown", "N/A"]:
+        data["beds"] = fallback_bbs.get("beds")
+
+    if data.get("baths") in [None, "", "unknown", "N/A"]:
+        data["baths"] = fallback_bbs.get("baths")
+
+    if data.get("sqft") in [None, "", "unknown", "N/A"]:
+        data["sqft"] = fallback_bbs.get("sqft")
     if not data.get("address"):
         data["address"] = block.get("address", "")
 

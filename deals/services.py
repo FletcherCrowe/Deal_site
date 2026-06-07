@@ -313,15 +313,19 @@ def save_llm_listings_to_db(deal, extracted_data):
 def analyze_property_listing(listing):
     settings = get_settings()
 
-    allowed_zips = [str(z).strip() for z in get_allowed_zip_list()]
+    allowed_zips = get_allowed_zip_list()
 
-    listing.zip_code = str(listing.zip_code or "").strip()
+    listing.zip_code = normalize_zip(listing.zip_code)
+
+    print("LISTING ZIP:", listing.zip_code)
+    print("ALLOWED ZIPS:", allowed_zips)
 
     if allowed_zips:
         listing.zip_allowed = listing.zip_code in allowed_zips
     else:
         listing.zip_allowed = True
 
+    print("ZIP ALLOWED RESULT:", listing.zip_allowed)
     if not listing.zip_allowed:
         listing.qualifies = False
         listing.reason = f"ZIP {listing.zip_code or 'missing'} is not allowed."
@@ -402,17 +406,62 @@ def analyze_property_listing(listing):
     return listing
 
 def get_allowed_zip_list():
+    """
+    Returns clean allowed ZIP codes from settings.allowed_zip_codes.
+
+    Handles:
+    38104
+    38104,38105
+    38671 -38672
+    38671-38672
+    """
+
     settings = get_settings()
+    raw = str(settings.allowed_zip_codes or "")
 
-    raw = settings.allowed_zip_codes or ""
+    allowed = set()
 
-    return [
-        z.strip()
-        for z in raw.replace("\n", ",").split(",")
-        if z.strip()
-    ]
+    # Split by comma or new line
+    parts = re.split(r"[,\n]+", raw)
 
+    for part in parts:
+        part = part.strip()
 
+        if not part:
+            continue
+
+        # Handle range like 38671 -38672 or 38671-38672
+        range_match = re.match(r"^(\d{5})\s*-\s*(\d{5})$", part)
+
+        if range_match:
+            start = int(range_match.group(1))
+            end = int(range_match.group(2))
+
+            for z in range(start, end + 1):
+                allowed.add(str(z))
+
+            continue
+
+        # Normal single ZIP
+        zip_match = re.search(r"\b\d{5}\b", part)
+
+        if zip_match:
+            allowed.add(zip_match.group(0))
+
+    return sorted(allowed)
+def normalize_zip(value):
+    """
+    Converts ZIP values into clean 5-digit strings.
+    """
+
+    value = str(value or "").strip()
+
+    match = re.search(r"\b\d{5}\b", value)
+
+    if match:
+        return match.group(0)
+
+    return ""
 def get_settings():
     """
     Get the one AppSettings record.
@@ -1042,17 +1091,6 @@ def extract_zip_from_text(text):
 
     return ""
 
-
-def get_allowed_zip_list():
-    settings = get_settings()
-
-    raw = settings.allowed_zip_codes or ""
-
-    return [
-        z.strip()
-        for z in raw.replace("\n", ",").split(",")
-        if z.strip()
-    ]
 
 
 def check_zip_allowed(deal):

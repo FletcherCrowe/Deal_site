@@ -661,3 +661,52 @@ def test_whatsapp(request):
     )
 
     return redirect("settings")
+import traceback
+from django.http import JsonResponse
+from .models import Deal, PropertyListing
+from .services import process_deal_after_llm_yes
+
+
+def debug_process_deal(request, deal_id):
+    deal = Deal.objects.get(id=deal_id)
+
+    before = PropertyListing.objects.count()
+
+    try:
+        qualified = process_deal_after_llm_yes(deal)
+    except Exception as e:
+        return JsonResponse({
+            "deal_id": deal.id,
+            "subject": deal.subject,
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "before_listings": before,
+            "after_listings": PropertyListing.objects.count(),
+        })
+
+    listings = PropertyListing.objects.filter(deal=deal)
+
+    return JsonResponse({
+        "deal_id": deal.id,
+        "subject": deal.subject,
+        "before_listings": before,
+        "after_listings": PropertyListing.objects.count(),
+        "listings_for_this_deal": listings.count(),
+        "qualified_count": len(qualified),
+        "latest_listings": [
+            {
+                "address": l.address,
+                "zip_code": l.zip_code,
+                "price": str(l.price),
+                "arv": str(l.arv),
+                "rehab_cost": str(l.rehab_cost),
+                "beds": str(l.beds),
+                "baths": str(l.baths),
+                "sqft": l.sqft,
+                "year_built": l.year_built,
+                "qualifies": l.qualifies,
+                "reason": l.reason,
+            }
+            for l in listings
+        ]
+    })

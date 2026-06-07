@@ -279,31 +279,55 @@ def save_llm_listings_to_db(deal, extracted_data):
 
     for item in listings:
         address = str(item.get("address") or "").strip()
-        raw_text = str(item.get("raw_text") or item.get("text") or item.get("property_block") or "")
-        fallback_bbs = extract_beds_baths_sqft_from_text(raw_text)
-        zip_code = str(item.get("zip_code") or "").strip()
+        city = str(item.get("city") or "").strip()
+        state = str(item.get("state") or "").strip()
+        zip_code = normalize_zip(item.get("zip_code"))
 
-        if not zip_code:
-            zip_code = extract_zip_from_address_or_text(address, deal.body)
+        full_address = address
 
-        zip_code = str(zip_code or "").strip()
+        if city and city.lower() not in full_address.lower():
+            full_address = f"{full_address}, {city}"
+
+        if state and state.lower() not in full_address.lower():
+            full_address = f"{full_address}, {state}"
+
+        if zip_code and zip_code not in full_address:
+            full_address = f"{full_address} {zip_code}"
+
+        price = (
+            item.get("asking_price")
+            or item.get("list_price")
+            or item.get("purchase_price")
+            or item.get("price")
+        )
+
+        rent = (
+            item.get("rent_high")
+            or item.get("rent_low")
+            or item.get("rent")
+        )
+
+        suggested_offer = (
+            item.get("suggested_offer_low")
+            or item.get("suggested_offer")
+        )
 
         listing = PropertyListing.objects.create(
             deal=deal,
-            address=address,
+            address=full_address.strip(),
             zip_code=zip_code,
 
-            price=clean_money(item.get("price")),
+            price=clean_money(price),
             arv=clean_money(item.get("arv")),
             rehab_cost=clean_money(item.get("rehab_cost")),
-            rent=clean_money(item.get("rent")),
+            rent=clean_money(rent),
             taxes=clean_money(item.get("taxes")),
 
-            beds=clean_decimal(item.get("beds") or fallback_bbs.get("beds")),
-            baths=clean_decimal(item.get("baths") or fallback_bbs.get("baths")),
-            sqft=clean_int(item.get("sqft") or fallback_bbs.get("sqft")),
+            beds=clean_decimal(item.get("beds")),
+            baths=clean_decimal(item.get("baths")),
+            sqft=clean_int(item.get("sqft")),
             year_built=clean_int(item.get("year_built")),
-            suggested_offer=clean_money(item.get("suggested_offer")),
+            suggested_offer=clean_money(suggested_offer),
 
             raw_llm_json=item,
         )
@@ -1363,14 +1387,41 @@ def run_client_deal_math(deal):
 
     return deal.math_qualifies
 def process_deal_after_llm_yes(deal):
-    extracted_data = extract_property_listings_with_llm(deal)
+    """
+    Runs after Hugging Face classifier says YES.
+
+    Gemini extracts listings.
+    Then Python checks each listing.
+    Gemini comp search only runs on listings that pass basic filters.
+    """
+
+    extracted_data = extract_property_listings_with_gemini(deal)
 
     listings = save_llm_listings_to_db(deal, extracted_data)
 
     qualified = []
 
     for listing in listings:
+        # First run basic ZIP/buy-box/math using email ARV.
         analyze_property_listing(listing)
+
+        # Only do web comp search if it has a valid ZIP and basic property info.
+        # This saves money and avoids comp searching junk.
+        if (
+            listing.zip_allowed
+            and listing.price
+            and listing.beds
+            and listing.baths
+            and listing.sqft
+        ):
+            try:
+                validate_arv_with_gemini_comps(listing)
+
+                # Re-run math after ARV validation.
+                analyze_property_listing(listing)
+
+            except Exception as comp_error:
+                print("GEMINI COMP VALIDATION ERROR:", comp_error)
 
         if listing.qualifies:
             qualified.append(listing)
@@ -1404,7 +1455,6 @@ def process_deal_after_llm_yes(deal):
             print("WHATSAPP SEND ERROR:", e)
 
     return qualified
-    import re
 
 
 ADDRESS_ZIP_PATTERN = re.compile(
@@ -1579,3 +1629,280 @@ Property block:
         data["zip_code"] = block.get("zip_code", "")
 
     return data
+import os
+import json
+import re
+from decimal import Decimal, InvalidOperation
+
+from google import genai
+from google.genai import types
+
+from .models import PropertyListing, PropertyComp
+GEMINI_EXTRACTION_MODEL = "gemini-2.5-flash"
+GEMINI_COMPS_MODEL = "gemini-2.5-flash"
+def get_gemini_client():
+    api_key = os.environ.get("GEMINI_API_KEY")
+
+    if not api_key:
+        raise Exception("GEMINI_API_KEY environment variable is missing.")
+
+    return genai.Client(api_key=api_key)
+
+
+def parse_json_safely(raw_text):
+    """
+    Handles clean JSON and occasional ```json wrappers.
+    """
+
+    raw_text = str(raw_text or "").strip()
+
+    raw_text = raw_text.replace("```json", "").replace("```", "").strip()
+
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+
+        if match:
+            return json.loads(match.group(0))
+
+    raise ValueError(f"Could not parse JSON: {raw_text[:500]}")
+def extract_property_listings_with_gemini(deal):
+    """
+    Second-stage extractor.
+
+    This runs only after Hugging Face says the email is a valid deal email.
+    It extracts every property listing separately.
+    """
+
+    client = get_gemini_client()
+
+    email_text = str(deal.body or "")
+
+    prompt = f"""
+You are an expert real estate deal extraction engine.
+
+This email may contain one property listing or many property listings.
+
+Your job:
+Extract EACH property as a separate object.
+Do not combine properties.
+Do not skip expensive properties.
+Do not decide if a deal qualifies.
+Extraction only.
+
+Return ONLY valid JSON.
+
+Required JSON structure:
+
+{{
+  "has_property_listings": true,
+  "listings": [
+    {{
+      "address": "",
+      "city": "",
+      "state": "",
+      "zip_code": "",
+      "type_of_listing": "",
+      "asking_price": null,
+      "list_price": null,
+      "purchase_price": null,
+      "arv": null,
+      "rehab_cost": null,
+      "rent_low": null,
+      "rent_high": null,
+      "taxes": null,
+      "insurance": null,
+      "beds": null,
+      "baths": null,
+      "sqft": null,
+      "year_built": null,
+      "suggested_offer_low": null,
+      "suggested_offer_high": null,
+      "estimated_profit_low": null,
+      "estimated_profit_high": null,
+      "missing_fields": []
+    }}
+  ]
+}}
+
+Rules:
+- Return one listing object per property address.
+- If the email has 18 properties, return 18 listing objects.
+- Use null for missing values.
+- Convert money to plain numbers.
+- Convert "ZERO", "ZERO; MOVE IN READY", or "MOVE IN READY" rehab to 0.
+- For "Bed/Bath & SQFT: 4/3 & 2,778", return beds=4, baths=3, sqft=2778.
+- For "Market Rent: $1,200-$1,800", return rent_low=1200 and rent_high=1800.
+- For "Suggested Offer Amount: $225,000 - $235,000", return suggested_offer_low=225000 and suggested_offer_high=235000.
+- ZIP code must belong to the specific listing.
+- Do not use street numbers as ZIP codes.
+- If no property listings exist, return:
+{{
+  "has_property_listings": false,
+  "listings": []
+}}
+
+Email:
+{email_text[:60000]}
+"""
+
+    response = client.models.generate_content(
+        model=GEMINI_EXTRACTION_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.0,
+        ),
+    )
+
+    raw_text = response.text
+
+    print("===== GEMINI EXTRACTION RAW START =====")
+    print(raw_text)
+    print("===== GEMINI EXTRACTION RAW END =====")
+
+    try:
+        return parse_json_safely(raw_text)
+    except Exception as e:
+        print("GEMINI EXTRACTION JSON ERROR:", e)
+        return {
+            "has_property_listings": False,
+            "listings": [],
+            "raw_error": raw_text[:2000],
+        }
+def find_comps_with_gemini(listing):
+    """
+    Uses Gemini + Google Search grounding to look for relevant sold comps.
+
+    Important:
+    This should be treated as a research/helper step.
+    Python should still do the final ARV/math.
+    """
+
+    client = get_gemini_client()
+
+    prompt = f"""
+You are helping validate ARV for a real estate investment property.
+
+Subject property:
+Address: {listing.address}
+ZIP: {listing.zip_code}
+Beds: {listing.beds}
+Baths: {listing.baths}
+Sqft: {listing.sqft}
+Year built: {listing.year_built}
+Email-provided ARV: {listing.arv}
+
+Find up to 5 relevant comparable sold properties using public web results.
+
+Comp filters:
+- Same neighborhood or nearby preferred
+- Similar square footage, ideally within ±20%
+- Similar bed/bath count
+- Sold in the last 6–12 months preferred
+- Prefer actual sold properties, not active listings
+- Include source URLs when available
+
+Return ONLY valid JSON:
+
+{{
+  "comps_found": true,
+  "comps": [
+    {{
+      "address": "",
+      "sold_price": null,
+      "beds": null,
+      "baths": null,
+      "sqft": null,
+      "sold_date": "",
+      "distance_miles": null,
+      "source_url": "",
+      "why_relevant": ""
+    }}
+  ],
+  "estimated_arv_from_comps": null,
+  "confidence": 0.0,
+  "notes": ""
+}}
+"""
+
+    response = client.models.generate_content(
+        model=GEMINI_COMPS_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[
+                types.Tool(
+                    google_search=types.GoogleSearch()
+                )
+            ],
+            response_mime_type="application/json",
+            temperature=0.0,
+        ),
+    )
+
+    raw_text = response.text
+
+    print("===== GEMINI COMPS RAW START =====")
+    print(raw_text)
+    print("===== GEMINI COMPS RAW END =====")
+
+    try:
+        return parse_json_safely(raw_text)
+    except Exception as e:
+        print("GEMINI COMPS JSON ERROR:", e)
+        return {
+            "comps_found": False,
+            "comps": [],
+            "estimated_arv_from_comps": None,
+            "confidence": 0,
+            "notes": f"Gemini comp search failed: {e}",
+        }
+def save_comps_to_db(listing, comps_data):
+    PropertyComp.objects.filter(listing=listing).delete()
+
+    comps = comps_data.get("comps", [])
+
+    saved = []
+
+    for comp in comps:
+        saved_comp = PropertyComp.objects.create(
+            listing=listing,
+            address=str(comp.get("address") or ""),
+            sold_price=clean_money(comp.get("sold_price")),
+            beds=clean_decimal(comp.get("beds")),
+            baths=clean_decimal(comp.get("baths")),
+            sqft=clean_int(comp.get("sqft")),
+            sold_date=str(comp.get("sold_date") or ""),
+            distance_miles=clean_decimal(comp.get("distance_miles")),
+            source_url=str(comp.get("source_url") or ""),
+        )
+
+        saved.append(saved_comp)
+
+    return saved
+
+
+def validate_arv_with_gemini_comps(listing):
+    """
+    Gets comps, saves them, and updates listing ARV only if Gemini returns a usable estimate.
+    """
+
+    comps_data = find_comps_with_gemini(listing)
+
+    save_comps_to_db(listing, comps_data)
+
+    estimated_arv = clean_money(comps_data.get("estimated_arv_from_comps"))
+
+    if estimated_arv:
+        listing.raw_llm_json = {
+            **(listing.raw_llm_json or {}),
+            "gemini_comps": comps_data,
+            "original_email_arv": str(listing.arv) if listing.arv else None,
+            "validated_arv": str(estimated_arv),
+        }
+
+        listing.arv = estimated_arv
+        listing.save()
+
+    return listing

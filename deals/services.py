@@ -317,15 +317,16 @@ def analyze_property_listing(listing):
 
     listing.zip_code = normalize_zip(listing.zip_code)
 
-    print("LISTING ZIP:", listing.zip_code)
-    print("ALLOWED ZIPS:", allowed_zips)
+    print("========== ZIP CHECK ==========")
+    print("LISTING ADDRESS:", listing.address)
+    print("LISTING ZIP:", repr(listing.zip_code))
+    print("ALLOWED ZIPS COUNT:", len(allowed_zips))
+    print("ALLOWED ZIPS SAMPLE:", allowed_zips[:10])
+    print("ZIP IN ALLOWED:", listing.zip_code in allowed_zips)
+    print("===============================")
 
-    if allowed_zips:
-        listing.zip_allowed = listing.zip_code in allowed_zips
-    else:
-        listing.zip_allowed = True
-
-    print("ZIP ALLOWED RESULT:", listing.zip_allowed)
+    listing.zip_allowed = listing.zip_code in allowed_zips
+    listing.save()
     if not listing.zip_allowed:
         listing.qualifies = False
         listing.reason = f"ZIP {listing.zip_code or 'missing'} is not allowed."
@@ -405,53 +406,71 @@ def analyze_property_listing(listing):
     listing.save()
     return listing
 
+DEFAULT_ALLOWED_ZIPS = """
+38002
+38016
+38017
+38018
+38027
+38053
+38104
+38105
+38106
+38107
+38108
+38109
+38111
+38112
+38114
+38115
+38116
+38117
+38118
+38119
+38122
+38125
+38126
+38127
+38128
+38133
+38134
+38135
+38138
+38139
+38141
+38637
+38654
+38671
+38672
+"""
+
+
 def get_allowed_zip_list():
     """
-    Returns clean allowed ZIP codes from settings.allowed_zip_codes.
-
-    Handles:
-    38104
-    38104,38105
-    38671 -38672
-    38671-38672
+    Gets allowed zip codes from AppSettings.
+    Falls back to the client's default zip list if settings are blank.
     """
 
     settings = get_settings()
-    raw = str(settings.allowed_zip_codes or "")
+
+    raw = getattr(settings, "allowed_zip_codes", "") or ""
+
+    # fallback so the system still works if settings box is blank
+    if not str(raw).strip():
+        raw = DEFAULT_ALLOWED_ZIPS
+
+    raw = str(raw)
 
     allowed = set()
 
-    # Split by comma or new line
-    parts = re.split(r"[,\n]+", raw)
-
-    for part in parts:
-        part = part.strip()
-
-        if not part:
-            continue
-
-        # Handle range like 38671 -38672 or 38671-38672
-        range_match = re.match(r"^(\d{5})\s*-\s*(\d{5})$", part)
-
-        if range_match:
-            start = int(range_match.group(1))
-            end = int(range_match.group(2))
-
-            for z in range(start, end + 1):
-                allowed.add(str(z))
-
-            continue
-
-        # Normal single ZIP
-        zip_match = re.search(r"\b\d{5}\b", part)
-
-        if zip_match:
-            allowed.add(zip_match.group(0))
+    # Find every 5 digit zip in the settings text
+    for zip_code in re.findall(r"\b\d{5}\b", raw):
+        allowed.add(str(zip_code).strip())
 
     return sorted(allowed)
 def normalize_zip(value):
     """
-    Converts ZIP values into clean 5-digit strings.
+    Converts zip to clean 5-digit string.
     """
 
     value = str(value or "").strip()
@@ -461,6 +480,7 @@ def normalize_zip(value):
     if match:
         return match.group(0)
 
+    return ""
     return ""
 def get_settings():
     """

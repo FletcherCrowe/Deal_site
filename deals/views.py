@@ -254,7 +254,15 @@ def connect_gmail(request):
     request.session.save()
 
     return redirect(authorization_url)
+from django.http import JsonResponse
+from .services import get_allowed_zip_list
 
+
+def debug_allowed_zips(request):
+    return JsonResponse({
+        "allowed_zips": get_allowed_zip_list(),
+        "count": len(get_allowed_zip_list()),
+    })
 def oauth2callback(request):
     google_creds = get_google_credentials_config()
 

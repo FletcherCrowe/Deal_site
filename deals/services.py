@@ -1638,8 +1638,8 @@ from google import genai
 from google.genai import types
 
 from .models import PropertyListing, PropertyComp
-GEMINI_EXTRACTION_MODEL = "gemini-2.0-flash"
-GEMINI_COMPS_MODEL = "gemini-2.0-flash"
+GEMINI_EXTRACTION_MODEL = "gemini-2.5-flash"
+GEMINI_COMPS_MODEL = "gemini-2.5-flash"
 def get_gemini_client():
     api_key = os.environ.get("GEMINI_API_KEY")
 

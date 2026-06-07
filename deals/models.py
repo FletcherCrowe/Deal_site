@@ -216,3 +216,20 @@ class GmailAccount(models.Model):
     def __str__(self):
         return self.email or "Connected Gmail"
 # client Id 977814781539-sqnh5qo1t0cms2cnggt2nsmu8lgudie3.apps.googleusercontent.com
+class PropertyComp(models.Model):
+    listing = models.ForeignKey(
+        "PropertyListing",
+        on_delete=models.CASCADE,
+        related_name="comps"
+    )
+
+    address = models.CharField(max_length=500, blank=True)
+    sold_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    beds = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    baths = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    sqft = models.IntegerField(null=True, blank=True)
+    sold_date = models.CharField(max_length=100, blank=True)
+    distance_miles = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    source_url = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)

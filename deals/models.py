@@ -60,6 +60,62 @@ class AppSettings(models.Model):
     # subject:(deal OR property OR wholesale)
     # from:example@email.com
     # newer_than:7d
+    # Buy box settings
+    min_beds = models.DecimalField(max_digits=5, decimal_places=1, default=2)
+    min_baths = models.DecimalField(max_digits=5, decimal_places=1, default=1)
+    max_price = models.DecimalField(max_digits=12, decimal_places=2, default=150000)
+    min_year_built = models.IntegerField(default=1970)
+    min_sqft = models.IntegerField(default=1300)
+
+    # ZIP settings
+    allowed_zip_codes = models.TextField(
+        default="""38002
+    38016
+    38017
+    38018
+    38027
+    38053
+    38104
+    38105
+    38106
+    38107
+    38108
+    38109
+    38111
+    38112
+    38114
+    38115
+    38116
+    38117
+    38118
+    38119
+    38122
+    38125
+    38126
+    38127
+    38128
+    38133
+    38134
+    38135
+    38138
+    38139
+    38141
+    38637
+    38654
+    38671
+    38672"""
+    )
+
+    # Fix & flip settings
+    flip_arv_multiplier = models.DecimalField(max_digits=5, decimal_places=2, default=0.70)
+    min_flip_profit = models.DecimalField(max_digits=12, decimal_places=2, default=30000)
+
+    # BRRRR settings
+    brrrr_loan_multiplier = models.DecimalField(max_digits=5, decimal_places=2, default=0.75)
+    max_brrrr_cash_left = models.DecimalField(max_digits=12, decimal_places=2, default=5000)
+
+    # Rehab fallback
+    rehab_cost_per_sqft = models.DecimalField(max_digits=8, decimal_places=2, default=35)
     gmail_query = models.CharField(
         max_length=255,
         default='subject:(deal OR property OR wholesale)'

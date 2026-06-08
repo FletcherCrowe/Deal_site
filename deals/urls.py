@@ -49,4 +49,5 @@ urlpatterns = [
     views.debug_process_deal,
     name="debug_process_deal"
     ),
+    path("debug-deal-settings/", views.debug_deal_settings, name="debug_deal_settings"),
 ]

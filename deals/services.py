@@ -392,88 +392,90 @@ def extract_beds_baths_sqft_from_text(text):
         "baths": None,
         "sqft": None,
     }
+from decimal import Decimal
+
+
 def analyze_property_listing(listing):
     settings = get_settings()
 
+    # ZIP check from settings
     allowed_zips = get_allowed_zip_list()
-
     listing.zip_code = normalize_zip(listing.zip_code)
 
-    print("========== ZIP CHECK ==========")
-    print("LISTING ADDRESS:", listing.address)
-    print("LISTING ZIP:", repr(listing.zip_code))
-    print("ALLOWED ZIPS COUNT:", len(allowed_zips))
-    print("ALLOWED ZIPS SAMPLE:", allowed_zips[:10])
-    print("ZIP IN ALLOWED:", listing.zip_code in allowed_zips)
-    print("===============================")
+    listing.zip_allowed = listing.zip_code in allowed_zips if allowed_zips else True
 
-    listing.zip_allowed = listing.zip_code in allowed_zips
-    listing.save()
     if not listing.zip_allowed:
         listing.qualifies = False
         listing.reason = f"ZIP {listing.zip_code or 'missing'} is not allowed."
         listing.save()
         return listing
 
-    # Buy box checks
-    if listing.beds is None or listing.beds < Decimal("2"):
+    # Buy box checks from settings
+    if listing.beds is None or listing.beds < Decimal(settings.min_beds):
         listing.qualifies = False
-        listing.reason = "Does not meet minimum beds."
+        listing.reason = f"Beds unavailable or below minimum of {settings.min_beds}."
         listing.save()
         return listing
 
-    if listing.baths is None or listing.baths < Decimal("1"):
+    if listing.baths is None or listing.baths < Decimal(settings.min_baths):
         listing.qualifies = False
-        listing.reason = "Does not meet minimum baths."
+        listing.reason = f"Baths unavailable or below minimum of {settings.min_baths}."
         listing.save()
         return listing
 
-    if listing.price is None or listing.price > Decimal("150000"):
+    if listing.price is None or listing.price > Decimal(settings.max_price):
         listing.qualifies = False
-        listing.reason = "Price missing or above $150,000."
+        listing.reason = f"Price missing or above max price of ${settings.max_price}."
         listing.save()
         return listing
 
-    if listing.year_built is None or listing.year_built < 1970:
+    if listing.year_built is None or listing.year_built < int(settings.min_year_built):
         listing.qualifies = False
-        listing.reason = "Year built missing or before 1970."
+        listing.reason = f"Year built missing or before {settings.min_year_built}."
         listing.save()
         return listing
 
-    if listing.sqft is None or listing.sqft < 1300:
+    if listing.sqft is None or listing.sqft < int(settings.min_sqft):
         listing.qualifies = False
-        listing.reason = "Square footage missing or below 1,300."
+        listing.reason = f"Square footage missing or below {settings.min_sqft}."
         listing.save()
         return listing
 
     if listing.arv is None:
         listing.qualifies = False
-        listing.reason = "Missing ARV. Needs comparable validation."
+        listing.reason = "Missing ARV."
         listing.save()
         return listing
 
+    # Rehab fallback from settings
     rehab = listing.rehab_cost
 
     if rehab is None:
-        rehab = Decimal(listing.sqft) * Decimal("35")
+        rehab = Decimal(listing.sqft) * Decimal(settings.rehab_cost_per_sqft)
         listing.rehab_cost = rehab
 
-    arv = listing.arv
-    price = listing.price
+    arv = Decimal(listing.arv)
+    price = Decimal(listing.price)
+    rehab = Decimal(rehab)
 
-    mao = (arv * Decimal("0.70")) - rehab
-    flip_profit = arv - (price + rehab)
+    # Formula settings
+    flip_arv_multiplier = Decimal(settings.flip_arv_multiplier)
+    brrrr_loan_multiplier = Decimal(settings.brrrr_loan_multiplier)
 
+    min_flip_profit = Decimal(settings.min_flip_profit)
+    max_brrrr_cash_left = Decimal(settings.max_brrrr_cash_left)
+
+    # Fix & Flip
+    listing.mao = (arv * flip_arv_multiplier) - rehab
+    listing.flip_profit = arv - (price + rehab)
+
+    # BRRRR
     total_investment = price + rehab
-    loan = arv * Decimal("0.75")
-    brrrr_cash_left = total_investment - loan
+    loan = arv * brrrr_loan_multiplier
+    listing.brrrr_cash_left = total_investment - loan
 
-    listing.mao = mao
-    listing.flip_profit = flip_profit
-    listing.brrrr_cash_left = brrrr_cash_left
-
-    listing.qualifies_flip = flip_profit >= Decimal("30000")
-    listing.qualifies_brrrr = brrrr_cash_left <= Decimal("5000")
+    listing.qualifies_flip = listing.flip_profit >= min_flip_profit
+    listing.qualifies_brrrr = listing.brrrr_cash_left <= max_brrrr_cash_left
     listing.qualifies = listing.qualifies_flip or listing.qualifies_brrrr
 
     if listing.qualifies_flip and listing.qualifies_brrrr:
@@ -483,78 +485,29 @@ def analyze_property_listing(listing):
     elif listing.qualifies_brrrr:
         listing.reason = "Qualifies for BRRRR."
     else:
-        listing.reason = "Does not meet flip or BRRRR profit rules."
+        listing.reason = (
+            f"Does not meet profit rules. "
+            f"Flip profit: ${listing.flip_profit}, "
+            f"BRRRR cash left: ${listing.brrrr_cash_left}."
+        )
 
     listing.save()
     return listing
 
-DEFAULT_ALLOWED_ZIPS = """
-38002
-38016
-38017
-38018
-38027
-38053
-38104
-38105
-38106
-38107
-38108
-38109
-38111
-38112
-38114
-38115
-38116
-38117
-38118
-38119
-38122
-38125
-38126
-38127
-38128
-38133
-38134
-38135
-38138
-38139
-38141
-38637
-38654
-38671
-38672
-"""
-
-
 def get_allowed_zip_list():
-    """
-    Gets allowed zip codes from AppSettings.
-    Falls back to the client's default zip list if settings are blank.
-    """
-
     settings = get_settings()
 
-    raw = getattr(settings, "allowed_zip_codes", "") or ""
-
-    # fallback so the system still works if settings box is blank
-    if not str(raw).strip():
-        raw = DEFAULT_ALLOWED_ZIPS
-
-    raw = str(raw)
+    raw = str(settings.allowed_zip_codes or "")
 
     allowed = set()
 
-    # Find every 5 digit zip in the settings text
     for zip_code in re.findall(r"\b\d{5}\b", raw):
-        allowed.add(str(zip_code).strip())
+        allowed.add(zip_code.strip())
 
     return sorted(allowed)
-def normalize_zip(value):
-    """
-    Converts zip to clean 5-digit string.
-    """
 
+
+def normalize_zip(value):
     value = str(value or "").strip()
 
     match = re.search(r"\b\d{5}\b", value)
@@ -563,7 +516,7 @@ def normalize_zip(value):
         return match.group(0)
 
     return ""
-    return ""
+
 def get_settings():
     """
     Get the one AppSettings record.

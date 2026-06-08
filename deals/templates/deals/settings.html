@@ -20,6 +20,10 @@
             padding: 30px 40px;
         }
 
+        .nav {
+            margin-bottom: 20px;
+        }
+
         .nav a {
             margin-right: 12px;
             color: #2563eb;
@@ -29,10 +33,10 @@
 
         .card {
             background: white;
-            padding: 20px;
+            padding: 24px;
             border-radius: 12px;
             margin-top: 20px;
-            max-width: 800px;
+            max-width: 950px;
         }
 
         label {
@@ -41,11 +45,18 @@
             margin-top: 14px;
         }
 
-        input, textarea {
+        input,
+        textarea {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
             box-sizing: border-box;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+        }
+
+        textarea {
+            font-family: Arial, sans-serif;
         }
 
         button {
@@ -56,6 +67,11 @@
             padding: 12px 20px;
             border-radius: 8px;
             cursor: pointer;
+            font-weight: bold;
+        }
+
+        .button-secondary {
+            background: #111827;
         }
 
         .message {
@@ -64,46 +80,90 @@
             border-radius: 8px;
             margin-top: 15px;
         }
+
+        .section {
+            border-top: 1px solid #e5e7eb;
+            margin-top: 28px;
+            padding-top: 20px;
+        }
+
+        .help {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        @media (max-width: 800px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        code {
+            background: #f3f4f6;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .status-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 14px;
+            margin-top: 12px;
+        }
     </style>
 </head>
 
 <body>
     <header>
         <h1>Editable App Settings</h1>
-        <p>Change Gmail, WhatsApp, buy box rules, formulas, and templates.</p>
-        <h2>Gmail Connection</h2>
-
+        <p>Change Gmail, WhatsApp, buy box rules, formulas, ZIP codes, LLM rules, and templates.</p>
     </header>
 
     <div class="container">
-        <h2>Connected Gmail</h2>
 
-{% if gmail_account %}
-    <p>Connected as: <b>{{ gmail_account.email }}</b></p>
-{% else %}
-    <p>No Gmail connected yet.</p>
-{% endif %}
-
-<a href="/connect-gmail/">
-    <button type="button">Connect Gmail</button>
-</a>
-    <h2>Gmail Connection</h2>
-
-    <p>
-    <a href="/connect-gmail/">
-        <button type="button">Connect Gmail</button>
-    </a>
-    </p>
         <div class="nav">
             <a href="/">Dashboard</a>
             <a href="/settings/">Settings</a>
             <a href="/manual-deal/">Manual Deal</a>
             <a href="/read-gmail/">Read Gmail</a>
+            <a href="/label-emails/">Label Emails</a>
+            <a href="/debug-deal-settings/">Debug Settings</a>
         </div>
 
         {% for message in messages %}
             <div class="message">{{ message }}</div>
         {% endfor %}
+
+        <div class="card">
+            <h2>Gmail Connection</h2>
+
+            <div class="status-box">
+                {% if gmail_account %}
+                    <p>Connected as: <b>{{ gmail_account.email }}</b></p>
+                {% else %}
+                    <p>No Gmail connected yet.</p>
+                {% endif %}
+
+                <p>
+                    <a href="/connect-gmail/">
+                        <button type="button" class="button-secondary">Connect Gmail</button>
+                    </a>
+                </p>
+
+                <p class="help">
+                    After changing Gmail scopes, use your reset route once, reconnect Gmail, then remove the reset route before production.
+                </p>
+            </div>
+        </div>
 
         <div class="card">
             <form method="POST">
@@ -115,89 +175,213 @@
                 <input
                     name="gmail_query"
                     value="{{ settings.gmail_query }}"
+                    placeholder="in:inbox newer_than:1d"
                 >
 
-                <p>
-                    Example:
-                    <code>subject:(deal OR property OR wholesale)</code>
+                <p class="help">
+                    For testing use <code>in:inbox newer_than:1d</code>.
+                    For normal use try <code>in:inbox newer_than:7d</code>.
                 </p>
 
-                <h2>WhatsApp Cloud API Settings</h2>
+                <div class="section">
+                    <h2>WhatsApp API Settings</h2>
 
-                <label>WhatsApp Token</label>
-                <textarea name="whatsapp_token" rows="4">{{ settings.whatsapp_token }}</textarea>
+                    <label>WhatsApp Token</label>
+                    <textarea name="whatsapp_token" rows="4">{{ settings.whatsapp_token }}</textarea>
 
-                <label>WhatsApp Phone Number ID</label>
-                <input
-                    name="whatsapp_phone_number_id"
-                    value="{{ settings.whatsapp_phone_number_id }}"
-                >
+                    <label>WhatsApp Phone Number ID</label>
+                    <input
+                        name="whatsapp_phone_number_id"
+                        value="{{ settings.whatsapp_phone_number_id }}"
+                    >
 
-                <label>Recipient WhatsApp Number</label>
-                <input
-                    name="whatsapp_to_number"
-                    value="{{ settings.whatsapp_to_number }}"
-                    placeholder="15551234567"
-                >
+                    <label>Recipient WhatsApp Number</label>
+                    <input
+                        name="whatsapp_to_number"
+                        value="{{ settings.whatsapp_to_number }}"
+                        placeholder="15551234567"
+                    >
 
-                <h2>Buy Box Rules</h2>
+                    <p>
+                        <a href="/test-whatsapp/">Send Test WhatsApp Alert</a>
+                    </p>
+                </div>
 
-                <label>Minimum Beds</label>
-                <input name="min_beds" value="{{ settings.min_beds }}">
+                <div class="section">
+                    <h2>Buy Box Rules</h2>
 
-                <label>Minimum Baths</label>
-                <input name="min_baths" value="{{ settings.min_baths }}">
+                    <div class="grid">
+                        <div>
+                            <label>Minimum Beds</label>
+                            <input
+                                type="number"
+                                step="0.5"
+                                name="min_beds"
+                                value="{{ settings.min_beds }}"
+                            >
+                        </div>
 
-                <label>Maximum Price</label>
-                <input name="max_price" value="{{ settings.max_price }}">
+                        <div>
+                            <label>Minimum Baths</label>
+                            <input
+                                type="number"
+                                step="0.5"
+                                name="min_baths"
+                                value="{{ settings.min_baths }}"
+                            >
+                        </div>
 
-                <label>Minimum Year Built</label>
-                <input name="min_year_built" value="{{ settings.min_year_built }}">
+                        <div>
+                            <label>Maximum Price</label>
+                            <input
+                                type="number"
+                                step="1000"
+                                name="max_price"
+                                value="{{ settings.max_price }}"
+                            >
+                        </div>
 
-                <label>Minimum Square Feet</label>
-                <input name="min_sqft" value="{{ settings.min_sqft }}">
+                        <div>
+                            <label>Minimum Year Built</label>
+                            <input
+                                type="number"
+                                name="min_year_built"
+                                value="{{ settings.min_year_built }}"
+                            >
+                        </div>
 
-                <label>Allowed Zip Codes</label>
-                <input
-                    name="allowed_zip_codes"
-                    value="{{ settings.allowed_zip_codes }}"
-                    placeholder="75201,75204,75206"
-                >
+                        <div>
+                            <label>Minimum Square Feet</label>
+                            <input
+                                type="number"
+                                name="min_sqft"
+                                value="{{ settings.min_sqft }}"
+                            >
+                        </div>
+                    </div>
 
-                <h2>Formula Settings</h2>
+                    <p class="help">
+                        These are used by the Python math engine after the LLM extracts each individual listing.
+                    </p>
+                </div>
 
-                <label>Flip ARV Multiplier</label>
-                <input name="flip_arv_multiplier" value="{{ settings.flip_arv_multiplier }}">
+                <div class="section">
+                    <h2>Allowed ZIP Codes</h2>
 
-                <label>BRRRR Loan Multiplier</label>
-                <input name="brrrr_loan_multiplier" value="{{ settings.brrrr_loan_multiplier }}">
+                    <label>Allowed ZIP Codes</label>
+                    <textarea
+                        name="allowed_zip_codes"
+                        rows="18"
+                        placeholder="Enter one ZIP code per line"
+                    >{{ settings.allowed_zip_codes }}</textarea>
 
-                <label>Minimum Flip Profit</label>
-                <input name="min_flip_profit" value="{{ settings.min_flip_profit }}">
+                    <p class="help">
+                        Enter one ZIP code per line. These are used for the per-listing ZIP check.
+                        The code reads ZIPs from this box, not hardcoded ZIPs.
+                    </p>
+                </div>
 
-                <label>Maximum BRRRR Cash Left</label>
-                <input name="max_brrrr_cash_left" value="{{ settings.max_brrrr_cash_left }}">
+                <div class="section">
+                    <h2>Fix & Flip Formula</h2>
 
-                <label>Rehab Cost Per Square Foot</label>
-                <input name="rehab_cost_per_sqft" value="{{ settings.rehab_cost_per_sqft }}">
-                <label>LLM Required Categories</label>
-                <textarea
-                    name="llm_required_categories"
-                    rows="10"
-                    style="width:100%; padding:10px;"
-                >{{ settings.llm_required_categories }}</textarea>
+                    <div class="grid">
+                        <div>
+                            <label>ARV Multiplier</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                name="flip_arv_multiplier"
+                                value="{{ settings.flip_arv_multiplier }}"
+                            >
+                            <p class="help">
+                                Example: <code>0.70</code> means MAO = ARV × 0.70 − Rehab.
+                            </p>
+                        </div>
 
-                <h2>Offer Template</h2>
+                        <div>
+                            <label>Minimum Flip Profit</label>
+                            <input
+                                type="number"
+                                step="1000"
+                                name="min_flip_profit"
+                                value="{{ settings.min_flip_profit }}"
+                            >
+                        </div>
+                    </div>
+                </div>
 
-                <label>Email Template</label>
-                <textarea name="offer_template" rows="8">{{ settings.offer_template }}</textarea>
+                <div class="section">
+                    <h2>BRRRR Formula</h2>
+
+                    <div class="grid">
+                        <div>
+                            <label>Loan Multiplier</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                name="brrrr_loan_multiplier"
+                                value="{{ settings.brrrr_loan_multiplier }}"
+                            >
+                            <p class="help">
+                                Example: <code>0.75</code> means loan = 75% of ARV.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label>Maximum BRRRR Cash Left</label>
+                            <input
+                                type="number"
+                                step="1000"
+                                name="max_brrrr_cash_left"
+                                value="{{ settings.max_brrrr_cash_left }}"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Rehab Fallback</h2>
+
+                    <label>Rehab Cost Per Square Foot</label>
+                    <input
+                        type="number"
+                        step="1"
+                        name="rehab_cost_per_sqft"
+                        value="{{ settings.rehab_cost_per_sqft }}"
+                    >
+
+                    <p class="help">
+                        Used only when rehab cost is missing. Example: sqft × $35.
+                    </p>
+                </div>
+
+                <div class="section">
+                    <h2>LLM Required Categories</h2>
+
+                    <label>Required Categories for First LLM Check</label>
+                    <textarea
+                        name="llm_required_categories"
+                        rows="10"
+                    >{{ settings.llm_required_categories }}</textarea>
+
+                    <p class="help">
+                        One category per line. The first LLM pass uses this to decide if the email is a valid deal email.
+                    </p>
+                </div>
+
+                <div class="section">
+                    <h2>Offer Template</h2>
+
+                    <label>Email Template</label>
+                    <textarea name="offer_template" rows="8">{{ settings.offer_template }}</textarea>
+
+                    <p class="help">
+                        Later, this template will be used when auto-replying with the calculated MAO.
+                    </p>
+                </div>
 
                 <button type="submit">Save Settings</button>
             </form>
-
-            <p>
-                <a href="/test-whatsapp/">Send Test WhatsApp Alert</a>
-            </p>
         </div>
 
     </div>
